@@ -116,13 +116,14 @@ def process_ocr_and_extract_images(pdf_path: str, output_ocr_path: str) -> bool:
 def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None) -> bytes:
     """
     Converts PDF bytes to DOCX bytes. Works on any PDF.
-    Applies OCR scanning, header/footer redaction, bullet fixes, and PDF-to-DOCX alignment correction.
+    Applies Advanced OCR scanning, image migration, header/footer redaction, bullet fixes, and alignment correction.
     """
     with tempfile.TemporaryDirectory() as tmp:
         in_path = os.path.join(tmp, "input.pdf")
         ocr_path = os.path.join(tmp, "input_ocr.pdf")
         redacted_path = os.path.join(tmp, "input_redacted.pdf")
         raw_path = os.path.join(tmp, "output_raw.docx")
+        adv_path = os.path.join(tmp, "output_adv.docx")
         aligned_path = os.path.join(tmp, "output_aligned.docx")
         bullets_fixed_path = os.path.join(tmp, "output_bullets_fixed.docx")
         final_path = os.path.join(tmp, "output_final.docx")
@@ -130,36 +131,48 @@ def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None)
         with open(in_path, "wb") as f:
             f.write(pdf_bytes)
 
-        # Step 1: Run OCR Engine to scan image-based / scanned pages
-        convert_source = in_path
+        # Step 1: Run Advanced OCR & Image Migration Engine first for pixel fidelity
+        used_adv_engine = False
         try:
-            if process_ocr_and_extract_images(in_path, ocr_path):
-                convert_source = ocr_path
+            convert_pdf_to_docx_advanced(in_path, adv_path)
+            if os.path.exists(adv_path) and os.path.getsize(adv_path) > 100:
+                raw_path = adv_path
+                used_adv_engine = True
+                logger.info("Advanced OCR & Image Migration engine rendered DOCX successfully")
         except Exception:
-            logger.exception("OCR preprocessing skipped/failed")
+            logger.exception("Advanced OCR engine fallback to standard pdf2docx pipeline")
 
-        # Step 2: Detect and redact running header/footer zones before conversion
-        zones = {"header": None, "footer": None}
-        try:
-            zones = detect_hf_zones(convert_source)
-            if zones.get("header") or zones.get("footer"):
-                create_redacted_pdf(convert_source, zones, redacted_path)
-                convert_source = redacted_path
-        except Exception:
-            logger.exception("Header/footer detection failed; converting unredacted PDF")
+        if not used_adv_engine:
+            # Fallback Pipeline: Standard pdf2docx with OCR pre-processing
+            convert_source = in_path
+            try:
+                if process_ocr_and_extract_images(in_path, ocr_path):
+                    convert_source = ocr_path
+            except Exception:
+                logger.exception("OCR preprocessing skipped/failed")
 
-        cv = Converter(convert_source)
-        try:
-            kwargs = {}
-            if start is not None:
-                kwargs["start"] = start
-            if end is not None:
-                kwargs["end"] = end
-            cv.convert(raw_path, **kwargs)
-        finally:
-            cv.close()
+            # Detect and redact running header/footer zones before conversion
+            zones = {"header": None, "footer": None}
+            try:
+                zones = detect_hf_zones(convert_source)
+                if zones.get("header") or zones.get("footer"):
+                    create_redacted_pdf(convert_source, zones, redacted_path)
+                    convert_source = redacted_path
+            except Exception:
+                logger.exception("Header/footer detection failed; converting unredacted PDF")
 
-        # Step 3: Run Layout & Bounding Box Alignment Analyzer & Fixer
+            cv = Converter(convert_source)
+            try:
+                kwargs = {}
+                if start is not None:
+                    kwargs["start"] = start
+                if end is not None:
+                    kwargs["end"] = end
+                cv.convert(raw_path, **kwargs)
+            finally:
+                cv.close()
+
+        # Step 2: Run Layout & Bounding Box Alignment Analyzer & Fixer
         try:
             align_docx_with_pdf(in_path, raw_path, aligned_path)
             result_path = aligned_path
@@ -167,21 +180,12 @@ def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None)
             logger.exception("Alignment optimization failed; continuing with raw docx")
             result_path = raw_path
 
-        # Step 4: Fix bullet paragraph spacing
+        # Step 3: Fix bullet paragraph spacing
         try:
             fix_docx_bullets(result_path, bullets_fixed_path)
             result_path = bullets_fixed_path
         except Exception:
             logger.exception("Bullet post-processing failed; continuing with unfixed docx")
-
-        # Step 5: Inject clean auto-updating headers/footers
-        footer_text = (zones.get("footer") or {}).get("text", "").strip()
-        if footer_text:
-            try:
-                inject_footer(result_path, footer_text, final_path)
-                result_path = final_path
-            except Exception:
-                logger.exception("Footer injection failed; returning docx without a real footer")
 
         with open(result_path, "rb") as f:
             return f.read()
