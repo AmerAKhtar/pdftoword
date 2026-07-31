@@ -116,13 +116,14 @@ def process_ocr_and_extract_images(pdf_path: str, output_ocr_path: str) -> bool:
 def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None) -> bytes:
     """
     Converts PDF bytes to DOCX bytes. Works on any PDF.
-    Applies OCR scanning and image extraction for scanned documents.
+    Applies OCR scanning, header/footer redaction, bullet fixes, and PDF-to-DOCX alignment correction.
     """
     with tempfile.TemporaryDirectory() as tmp:
         in_path = os.path.join(tmp, "input.pdf")
         ocr_path = os.path.join(tmp, "input_ocr.pdf")
         redacted_path = os.path.join(tmp, "input_redacted.pdf")
         raw_path = os.path.join(tmp, "output_raw.docx")
+        aligned_path = os.path.join(tmp, "output_aligned.docx")
         bullets_fixed_path = os.path.join(tmp, "output_bullets_fixed.docx")
         final_path = os.path.join(tmp, "output_final.docx")
         
@@ -158,13 +159,22 @@ def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None)
         finally:
             cv.close()
 
+        # Step 3: Run Layout & Bounding Box Alignment Analyzer & Fixer
         try:
-            fix_docx_bullets(raw_path, bullets_fixed_path)
+            align_docx_with_pdf(in_path, raw_path, aligned_path)
+            result_path = aligned_path
+        except Exception:
+            logger.exception("Alignment optimization failed; continuing with raw docx")
+            result_path = raw_path
+
+        # Step 4: Fix bullet paragraph spacing
+        try:
+            fix_docx_bullets(result_path, bullets_fixed_path)
             result_path = bullets_fixed_path
         except Exception:
             logger.exception("Bullet post-processing failed; continuing with unfixed docx")
-            result_path = raw_path
 
+        # Step 5: Inject clean auto-updating headers/footers
         footer_text = (zones.get("footer") or {}).get("text", "").strip()
         if footer_text:
             try:
