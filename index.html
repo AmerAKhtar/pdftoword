@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocuShift | High-Fidelity PDF to Word Converter</title>
+  <meta name="description" content="Convert PDF documents into editable Word (.docx) files with precision layout parsing, bullet alignment, and auto header/footer redaction.">
+  
+  <!-- Google Fonts & FontAwesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- PDF.js CDN for Client-Side PDF Preview -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Navbar Header -->
+    <header class="app-header">
+      <a href="#" class="brand-logo">
+        <div class="logo-icon">
+          <i class="fa-solid fa-file-word"></i>
+        </div>
+        <div>
+          <span class="brand-name">DocuShift</span>
+          <span class="brand-tag">gh-pages</span>
+        </div>
+      </a>
+
+      <!-- API Connection Config Box -->
+      <div class="api-config-box">
+        <div id="api-status-indicator" class="api-status-dot" title="Checking API status..."></div>
+        <i class="fa-solid fa-server" style="color: var(--text-dim); font-size: 0.8rem;"></i>
+        <input type="text" id="api-url-input" class="api-input" value="http://localhost:8080" placeholder="Backend API URL" title="Set Backend Service URL">
+        <button id="btn-test-api" class="btn-icon" title="Test Connection">
+          <i class="fa-solid fa-rotate"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero Title -->
+    <section class="hero-section">
+      <h1 class="hero-title">Transform PDFs into <span>Flawless Word</span> Documents</h1>
+      <p class="hero-subtitle">
+        Preserves vector graphics, table structures, and complex layouts. Automatically redacts repeating header/footer bloat and fixes bullet spacing.
+      </p>
+    </section>
+
+    <!-- Main Dynamic Workspace -->
+    <main>
+      <div id="main-grid" class="main-grid">
+
+        <!-- Left / Initial State: File Dropzone -->
+        <div id="dropzone-card" class="glass-card">
+          <div id="dropzone" class="dropzone-container">
+            <input type="file" id="file-input" class="file-input-hidden" accept="application/pdf">
+            <div class="dropzone-icon">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            <h2 class="dropzone-title">Drop your PDF here</h2>
+            <p class="dropzone-subtitle">or click below to browse from your computer</p>
+            <button type="button" class="btn-select" onclick="document.getElementById('file-input').click()">
+              <i class="fa-solid fa-folder-open"></i> Select PDF File
+            </button>
+            <div class="file-specs-badge">
+              <div class="file-spec-item"><i class="fa-solid fa-shield-halved"></i> 100% Secure</div>
+              <div class="file-spec-item"><i class="fa-solid fa-bolt"></i> Fast Extraction</div>
+              <div class="file-spec-item"><i class="fa-solid fa-layer-group"></i> Smart Layout</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Panel: PDF Preview & Options (Hidden initially until file selected) -->
+        <div id="preview-card" class="glass-card preview-panel hidden">
+          
+          <div class="pdf-info-header">
+            <div class="pdf-meta">
+              <div class="pdf-icon-badge">
+                <i class="fa-solid fa-file-pdf"></i>
+              </div>
+              <div>
+                <div id="file-name-display" class="pdf-file-name">document.pdf</div>
+                <div id="file-size-display" class="pdf-file-size">0 KB</div>
+              </div>
+            </div>
+            <button id="btn-change-file" class="btn-icon" title="Remove / Change File">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <!-- Canvas PDF Viewer -->
+          <div class="canvas-viewport">
+            <canvas id="pdf-canvas"></canvas>
+            <div class="canvas-controls">
+              <button id="btn-prev-page" class="btn-icon"><i class="fa-solid fa-chevron-left"></i></button>
+              <span id="page-indicator" class="page-indicator">Page 1 of 1</span>
+              <button id="btn-next-page" class="btn-icon"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+          </div>
+
+          <!-- Conversion Options Grid -->
+          <div class="options-grid">
+            <div class="option-card">
+              <span class="option-label">Page Range</span>
+              <div class="option-input-group">
+                <input type="number" id="start-page-input" class="option-input" min="1" placeholder="From 1">
+                <span style="color: var(--text-dim);">-</span>
+                <input type="number" id="end-page-input" class="option-input" min="1" placeholder="To End">
+              </div>
+            </div>
+
+            <div class="option-card">
+              <span class="option-label">Output Format</span>
+              <div class="option-input-group">
+                <input type="text" class="option-input" value="Microsoft Word (.docx)" disabled readonly>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button id="btn-convert-now" class="btn-convert">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Convert to Word
+          </button>
+
+        </div>
+
+        <!-- Conversion Progress Panel (Hidden initially) -->
+        <div id="progress-card" class="glass-card progress-card hidden">
+          <div class="spinner-outer">
+            <div class="spinner-ring"></div>
+            <div class="spinner-icon">
+              <i class="fa-solid fa-gear fa-spin"></i>
+            </div>
+          </div>
+          <h2 class="progress-title">Converting PDF to Word</h2>
+          <div id="progress-step-text" class="progress-step">Analyzing layout & headers/footers...</div>
+          
+          <div class="progress-bar-track">
+            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+          </div>
+          
+          <p style="color: var(--text-muted); font-size: 0.85rem;">
+            Please wait while PyMuPDF & pdf2docx reconstruct your document formatting.
+          </p>
+        </div>
+
+        <!-- Success Result Panel (Hidden initially) -->
+        <div id="success-card" class="glass-card success-card hidden">
+          <div class="success-icon">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <h2 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 0.5rem;">Conversion Complete!</h2>
+          <p style="color: var(--text-muted); font-size: 0.95rem;">Your editable Word document is ready for download.</p>
+          
+          <div>
+            <a id="btn-download-docx" href="#" download="converted.docx" class="btn-download">
+              <i class="fa-solid fa-file-arrow-down"></i> Download Word (.docx)
+            </a>
+          </div>
+
+          <button id="btn-start-over" class="btn-reset">
+            <i class="fa-solid fa-rotate-left"></i> Convert Another Document
+          </button>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Key Features Section -->
+    <section class="features-section">
+      <div class="feature-box">
+        <div class="feature-icon">
+          <i class="fa-solid fa-scissors"></i>
+        </div>
+        <h3 class="feature-title">Smart Header/Footer Redaction</h3>
+        <p class="feature-desc">
+          Detects repeating header and footer artifacts across PDF pages and redacts them prior to conversion to prevent blank pages and text leakage.
+        </p>
+      </div>
+
+      <div class="feature-box">
+        <div class="feature-icon">
+          <i class="fa-solid fa-list-check"></i>
+        </div>
+        <h3 class="feature-title">Tight Bullet Formatting</h3>
+        <p class="feature-desc">
+          Automatically normalizes excess list paragraph spacing and table-cell bullet margins for clean native Word list formatting.
+        </p>
+      </div>
+
+      <div class="feature-box">
+        <div class="feature-icon">
+          <i class="fa-solid fa-image"></i>
+        </div>
+        <h3 class="feature-title">CMYK Vector Preservation</h3>
+        <p class="feature-desc">
+          Custom contour patch ensures CMYK vector images render accurately without colorspace exceptions during extraction.
+        </p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>DocuShift PDF to Word Service &bull; Hosted on GitHub Pages &bull; Powered by PyMuPDF & pdf2docx</p>
+    </footer>
+
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -129,27 +129,80 @@ def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None)
 # `app` must exist at module level -- gunicorn imports this file as a module
 # and looks for a top-level `app` attribute. Nesting it inside __main__ means
 # gunicorn never sees it.
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify
 import io
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=".", static_url_path="")
 
 
-@app.post("/convert/pdf-to-docx")
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, HEAD"
+    return response
+
+
+@app.route("/", methods=["GET"])
+def index():
+    return send_file("index.html")
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok", "service": "pdf2docx"})
+
+
+@app.route("/convert/pdf-to-docx", methods=["POST", "OPTIONS"])
 def handle_convert():
-    pdf_bytes = request.get_data()
+    if request.method == "OPTIONS":
+        return "", 204
+
+    # Extract PDF bytes from multipart form upload or raw body
+    pdf_bytes = None
+    filename = "converted.docx"
+    
+    if "file" in request.files:
+        file_obj = request.files["file"]
+        pdf_bytes = file_obj.read()
+        orig_name = file_obj.filename or "document.pdf"
+        base_name = os.path.splitext(orig_name)[0]
+        filename = f"{base_name}.docx"
+    else:
+        pdf_bytes = request.get_data()
+
+    if not pdf_bytes:
+        return {"error": "No PDF file provided"}, 400
+
+    # Parse optional page range parameters (1-indexed from query/form -> 0-indexed for converter)
+    start_arg = request.args.get("start") or request.form.get("start")
+    end_arg = request.args.get("end") or request.form.get("end")
+
+    start_idx = None
+    end_idx = None
+    
     try:
-        docx_bytes = convert_pdf_to_docx(pdf_bytes)
+        if start_arg is not None and str(start_arg).strip() != "":
+            start_idx = max(0, int(start_arg) - 1)
+        if end_arg is not None and str(end_arg).strip() != "":
+            end_idx = int(end_arg) # pdf2docx end is 0-indexed non-inclusive or page number
+    except ValueError:
+        return {"error": "Invalid page range parameters"}, 400
+
+    try:
+        docx_bytes = convert_pdf_to_docx(pdf_bytes, start=start_idx, end=end_idx)
     except Exception as exc:
         logger.exception("pdf2docx conversion failed")
         return {"error": str(exc)}, 422
+
     return send_file(
         io.BytesIO(docx_bytes),
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         as_attachment=True,
-        download_name="converted.docx",
+        download_name=filename,
     )
 
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
