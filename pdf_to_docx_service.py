@@ -113,11 +113,22 @@ def process_ocr_and_extract_images(pdf_path: str, output_ocr_path: str) -> bool:
     return False
 
 
-def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None) -> bytes:
+def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None, client_id: str = None, client_secret: str = None) -> bytes:
     """
-    Converts PDF bytes to DOCX bytes. Works on any PDF.
-    Applies Advanced OCR scanning, image migration, header/footer redaction, bullet fixes, and alignment correction.
+    Converts PDF bytes to DOCX bytes. Supports Adobe Acrobat API with local OCR fallback.
     """
+    # Step 0: Try Adobe Acrobat Services API if credentials are provided
+    adobe_id = client_id or ADOBE_CLIENT_ID
+    adobe_secret = client_secret or ADOBE_CLIENT_SECRET
+
+    if adobe_id and adobe_secret:
+        try:
+            logger.info("Attempting conversion via Adobe Acrobat Services API...")
+            adobe_docx_bytes = convert_pdf_with_adobe_api(pdf_bytes, client_id=adobe_id, client_secret=adobe_secret)
+            return adobe_docx_bytes
+        except Exception as adobe_err:
+            logger.warning(f"Adobe Acrobat API failed/unavailable ({adobe_err}). Falling back to local OCR engine...")
+
     with tempfile.TemporaryDirectory() as tmp:
         in_path = os.path.join(tmp, "input.pdf")
         ocr_path = os.path.join(tmp, "input_ocr.pdf")
@@ -255,8 +266,18 @@ def handle_convert():
     except ValueError:
         return {"error": "Invalid page range parameters"}, 400
 
+    # Parse optional Adobe API credentials from headers or form inputs
+    adobe_client_id = request.headers.get("X-Adobe-Client-Id") or request.form.get("adobe_client_id")
+    adobe_client_secret = request.headers.get("X-Adobe-Client-Secret") or request.form.get("adobe_client_secret")
+
     try:
-        docx_bytes = convert_pdf_to_docx(pdf_bytes, start=start_idx, end=end_idx)
+        docx_bytes = convert_pdf_to_docx(
+            pdf_bytes, 
+            start=start_idx, 
+            end=end_idx,
+            client_id=adobe_client_id,
+            client_secret=adobe_client_secret
+        )
     except Exception as exc:
         logger.exception("pdf2docx conversion failed")
         return {"error": str(exc)}, 422
