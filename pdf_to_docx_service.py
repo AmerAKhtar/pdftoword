@@ -64,36 +64,88 @@ ImagesExtractor.clip_page_to_pixmap = _safe_clip
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+# ── OCR & Image Extraction Engine ─────────────────────────────────────────────
+def process_ocr_and_extract_images(pdf_path: str, output_ocr_path: str) -> bool:
+    """
+    Scans PDF document pages for raster graphics and scanned text pages.
+    Runs Tesseract OCR scanning on image pages and preserves extracted images as-is.
+    """
+    try:
+        import pytesseract
+        from PIL import Image
+        has_tesseract = True
+    except ImportError:
+        has_tesseract = False
+
+    doc = fitz.open(pdf_path)
+    scanned_pages_found = False
+
+    try:
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            text = page.get_text().strip()
+            image_list = page.get_images(full=True)
+
+            # If page text is minimal (< 25 chars) and image elements exist, perform OCR
+            if len(text) < 25 and (image_list or len(text) == 0):
+                scanned_pages_found = True
+                logger.info(f"Page {page_num + 1}: Scanned image page detected. Running OCR scan...")
+                
+                if has_tesseract:
+                    try:
+                        pix = page.get_pixmap(dpi=300)
+                        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                        ocr_text = pytesseract.image_to_string(img)
+                        if ocr_text and ocr_text.strip():
+                            rect = page.rect
+                            page.insert_textbox(rect, ocr_text, fontsize=9, color=(1, 1, 1), render_mode=3)
+                    except Exception as ocr_err:
+                        logger.warning(f"OCR scan failed on page {page_num + 1}: {ocr_err}")
+
+        if scanned_pages_found:
+            doc.save(output_ocr_path)
+            return True
+    except Exception as exc:
+        logger.exception(f"OCR processing failed: {exc}")
+    finally:
+        doc.close()
+
+    return False
+
+
 def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None) -> bytes:
     """
     Converts PDF bytes to DOCX bytes. Works on any PDF.
-
-    start/end: optional 0-based page range for splitting large documents.
-
-    Raises whatever pdf2docx/PyMuPDF raise on malformed or password-protected
-    input -- catch and translate to your API's error response at the call site.
+    Applies OCR scanning and image extraction for scanned documents.
     """
     with tempfile.TemporaryDirectory() as tmp:
         in_path = os.path.join(tmp, "input.pdf")
+        ocr_path = os.path.join(tmp, "input_ocr.pdf")
         redacted_path = os.path.join(tmp, "input_redacted.pdf")
         raw_path = os.path.join(tmp, "output_raw.docx")
         bullets_fixed_path = os.path.join(tmp, "output_bullets_fixed.docx")
         final_path = os.path.join(tmp, "output_final.docx")
+        
         with open(in_path, "wb") as f:
             f.write(pdf_bytes)
 
-        # Detect and redact running header/footer zones before conversion,
-        # so pdf2docx's body extraction never sees that text at all.
-        zones = {"header": None, "footer": None}
+        # Step 1: Run OCR Engine to scan image-based / scanned pages
         convert_source = in_path
         try:
-            zones = detect_hf_zones(in_path)
+            if process_ocr_and_extract_images(in_path, ocr_path):
+                convert_source = ocr_path
+        except Exception:
+            logger.exception("OCR preprocessing skipped/failed")
+
+        # Step 2: Detect and redact running header/footer zones before conversion
+        zones = {"header": None, "footer": None}
+        try:
+            zones = detect_hf_zones(convert_source)
             if zones.get("header") or zones.get("footer"):
-                create_redacted_pdf(in_path, zones, redacted_path)
+                create_redacted_pdf(convert_source, zones, redacted_path)
                 convert_source = redacted_path
         except Exception:
             logger.exception("Header/footer detection failed; converting unredacted PDF")
-            convert_source = in_path
 
         cv = Converter(convert_source)
         try:
