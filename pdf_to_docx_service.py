@@ -47,159 +47,29 @@ from pdf2docx.image.ImagesExtractor import ImagesExtractor
 
 from fix_bullets import fix_docx_bullets
 from fix_headers_footers import detect_hf_zones, create_redacted_pdf, inject_footer
+from fix_alignment import align_docx_with_pdf
+from advanced_ocr_engine import convert_pdf_to_docx_advanced
+from hybrid_engine import convert_pdf_hybrid_engine
 
 logger = logging.getLogger(__name__)
 
 
-# ── Bug fix 1: CMYK PNG error ────────────────────────────────────────────────
-_orig_clip = ImagesExtractor.clip_page_to_pixmap
-
-def _safe_clip(self, bbox=None, rm_image=False, zoom=2.0):
-    pix = _orig_clip(self, bbox=bbox, rm_image=rm_image, zoom=zoom)
-    if pix.colorspace and pix.colorspace not in (fitz.csGRAY, fitz.csRGB):
-        pix = fitz.Pixmap(fitz.csRGB, pix)
-    return pix
-
-ImagesExtractor.clip_page_to_pixmap = _safe_clip
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-# ── OCR & Image Extraction Engine ─────────────────────────────────────────────
-def process_ocr_and_extract_images(pdf_path: str, output_ocr_path: str) -> bool:
+def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None) -> bytes:
     """
-    Scans PDF document pages for raster graphics and scanned text pages.
-    Runs Tesseract OCR scanning on image pages and preserves extracted images as-is.
+    Converts PDF bytes to DOCX bytes using Hybrid Multi-Engine pipeline (LibreOffice + Advanced OCR + Layout Alignment).
     """
     try:
-        import pytesseract
-        from PIL import Image
-        has_tesseract = True
-    except ImportError:
-        has_tesseract = False
-
-    doc = fitz.open(pdf_path)
-    scanned_pages_found = False
-
-    try:
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            text = page.get_text().strip()
-            image_list = page.get_images(full=True)
-
-            # If page text is minimal (< 25 chars) and image elements exist, perform OCR
-            if len(text) < 25 and (image_list or len(text) == 0):
-                scanned_pages_found = True
-                logger.info(f"Page {page_num + 1}: Scanned image page detected. Running OCR scan...")
-                
-                if has_tesseract:
-                    try:
-                        pix = page.get_pixmap(dpi=300)
-                        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                        ocr_text = pytesseract.image_to_string(img)
-                        if ocr_text and ocr_text.strip():
-                            rect = page.rect
-                            page.insert_textbox(rect, ocr_text, fontsize=9, color=(1, 1, 1), render_mode=3)
-                    except Exception as ocr_err:
-                        logger.warning(f"OCR scan failed on page {page_num + 1}: {ocr_err}")
-
-        if scanned_pages_found:
-            doc.save(output_ocr_path)
-            return True
+        return convert_pdf_hybrid_engine(pdf_bytes, start=start, end=end)
     except Exception as exc:
-        logger.exception(f"OCR processing failed: {exc}")
-    finally:
-        doc.close()
-
-    return False
-
-
-def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None, client_id: str = None, client_secret: str = None) -> bytes:
-    """
-    Converts PDF bytes to DOCX bytes. Supports Adobe Acrobat API with local OCR fallback.
-    """
-    # Step 0: Try Adobe Acrobat Services API if credentials are provided
-    adobe_id = client_id or ADOBE_CLIENT_ID
-    adobe_secret = client_secret or ADOBE_CLIENT_SECRET
-
-    if adobe_id and adobe_secret:
-        try:
-            logger.info("Attempting conversion via Adobe Acrobat Services API...")
-            adobe_docx_bytes = convert_pdf_with_adobe_api(pdf_bytes, client_id=adobe_id, client_secret=adobe_secret)
-            return adobe_docx_bytes
-        except Exception as adobe_err:
-            logger.warning(f"Adobe Acrobat API failed/unavailable ({adobe_err}). Falling back to local OCR engine...")
-
-    with tempfile.TemporaryDirectory() as tmp:
-        in_path = os.path.join(tmp, "input.pdf")
-        ocr_path = os.path.join(tmp, "input_ocr.pdf")
-        redacted_path = os.path.join(tmp, "input_redacted.pdf")
-        raw_path = os.path.join(tmp, "output_raw.docx")
-        adv_path = os.path.join(tmp, "output_adv.docx")
-        aligned_path = os.path.join(tmp, "output_aligned.docx")
-        bullets_fixed_path = os.path.join(tmp, "output_bullets_fixed.docx")
-        final_path = os.path.join(tmp, "output_final.docx")
-        
-        with open(in_path, "wb") as f:
-            f.write(pdf_bytes)
-
-        # Step 1: Run Advanced OCR & Image Migration Engine first for pixel fidelity
-        used_adv_engine = False
-        try:
-            convert_pdf_to_docx_advanced(in_path, adv_path)
-            if os.path.exists(adv_path) and os.path.getsize(adv_path) > 100:
-                raw_path = adv_path
-                used_adv_engine = True
-                logger.info("Advanced OCR & Image Migration engine rendered DOCX successfully")
-        except Exception:
-            logger.exception("Advanced OCR engine fallback to standard pdf2docx pipeline")
-
-        if not used_adv_engine:
-            # Fallback Pipeline: Standard pdf2docx with OCR pre-processing
-            convert_source = in_path
-            try:
-                if process_ocr_and_extract_images(in_path, ocr_path):
-                    convert_source = ocr_path
-            except Exception:
-                logger.exception("OCR preprocessing skipped/failed")
-
-            # Detect and redact running header/footer zones before conversion
-            zones = {"header": None, "footer": None}
-            try:
-                zones = detect_hf_zones(convert_source)
-                if zones.get("header") or zones.get("footer"):
-                    create_redacted_pdf(convert_source, zones, redacted_path)
-                    convert_source = redacted_path
-            except Exception:
-                logger.exception("Header/footer detection failed; converting unredacted PDF")
-
-            cv = Converter(convert_source)
-            try:
-                kwargs = {}
-                if start is not None:
-                    kwargs["start"] = start
-                if end is not None:
-                    kwargs["end"] = end
-                cv.convert(raw_path, **kwargs)
-            finally:
-                cv.close()
-
-        # Step 2: Run Layout & Bounding Box Alignment Analyzer & Fixer
-        try:
-            align_docx_with_pdf(in_path, raw_path, aligned_path)
-            result_path = aligned_path
-        except Exception:
-            logger.exception("Alignment optimization failed; continuing with raw docx")
-            result_path = raw_path
-
-        # Step 3: Fix bullet paragraph spacing
-        try:
-            fix_docx_bullets(result_path, bullets_fixed_path)
-            result_path = bullets_fixed_path
-        except Exception:
-            logger.exception("Bullet post-processing failed; continuing with unfixed docx")
-
-        with open(result_path, "rb") as f:
-            return f.read()
+        logger.exception("Hybrid multi-engine conversion failed; executing emergency fallback")
+        with tempfile.TemporaryDirectory() as tmp:
+            in_path = os.path.join(tmp, "input.pdf")
+            out_path = os.path.join(tmp, "output.docx")
+            with open(in_path, "wb") as f:
+                f.write(pdf_bytes)
+            convert_pdf_to_docx_advanced(in_path, out_path)
+            with open(out_path, "rb") as f:
+                return f.read()
 
 
 # ── Flask endpoint ────────────────────────────────────────────────────────────
