@@ -1,0 +1,155 @@
+"""
+General-purpose PDF -> Word (.docx) conversion for ConvertFlow's Cloud Run
+backend, using pdf2docx (PyMuPDF-based extraction + rule-based layout
+parsing + python-docx generation).
+
+Bugs fixed here beyond stock pdf2docx:
+
+Bug 1 -- CMYK PNG error ("pixmap must be grayscale or rgb to write as png")
+  pdf2docx 0.5.13 correctly converts CMYK *embedded images* via _to_raw_dict,
+  but a second code path used for SVG contour detection calls pixmap.tobytes()
+  directly, bypassing the colorspace check. Fix: monkeypatch
+  clip_page_to_pixmap -- the shared choke-point -- to guarantee RGB output.
+
+Bug 2 -- Excess inter-bullet spacing
+  pdf2docx sometimes emits w:before="276"/"326" on bullet paragraphs copied
+  from table-based source layouts. fix_bullets.py strips existing w:spacing
+  and replaces it with tight values matching the source.
+
+Bug 3 -- Extra blank pages, and footer text leaking into the body
+  pdf2docx has no concept of a running header/footer -- it extracts every
+  line of text on every page as body content, including the same
+  "Name - Ph: ..." line and page number that repeat on every page. That
+  shows up as body paragraphs (sometimes alone on a near-blank page) instead
+  of a real Word footer. Fix, in order:
+    1. detect_hf_zones() finds text that repeats at the same position across
+       most pages (the defining trait of a running footer, unlike a heading
+       that merely sits near a page edge).
+    2. create_redacted_pdf() removes that text from the PDF *before* pdf2docx
+       ever runs -- true redaction (add_redact_annot + apply_redactions),
+       not a cosmetic white box, so the text genuinely isn't there to extract.
+    3. pdf2docx converts the redacted copy, so its body never contains
+       footer artifacts in the first place -- no detect-and-delete guessing
+       needed downstream.
+    4. inject_footer() adds the footer back as a real Word footer part, with
+       a genuine auto-updating PAGE field, wired to every section.
+  fix_page_bloat() (inside fix_bullets.py) separately cleans up spurious
+  w:sectPr elements pdf2docx emits for reconstructed table-column layouts,
+  which cause additional blank pages unrelated to the footer issue.
+"""
+
+import logging
+import os
+import tempfile
+import fitz
+from pdf2docx import Converter
+from pdf2docx.image.ImagesExtractor import ImagesExtractor
+
+from fix_bullets import fix_docx_bullets
+from fix_headers_footers import detect_hf_zones, create_redacted_pdf, inject_footer
+
+logger = logging.getLogger(__name__)
+
+
+# ── Bug fix 1: CMYK PNG error ────────────────────────────────────────────────
+_orig_clip = ImagesExtractor.clip_page_to_pixmap
+
+def _safe_clip(self, bbox=None, rm_image=False, zoom=2.0):
+    pix = _orig_clip(self, bbox=bbox, rm_image=rm_image, zoom=zoom)
+    if pix.colorspace and pix.colorspace not in (fitz.csGRAY, fitz.csRGB):
+        pix = fitz.Pixmap(fitz.csRGB, pix)
+    return pix
+
+ImagesExtractor.clip_page_to_pixmap = _safe_clip
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None) -> bytes:
+    """
+    Converts PDF bytes to DOCX bytes. Works on any PDF.
+
+    start/end: optional 0-based page range for splitting large documents.
+
+    Raises whatever pdf2docx/PyMuPDF raise on malformed or password-protected
+    input -- catch and translate to your API's error response at the call site.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        in_path = os.path.join(tmp, "input.pdf")
+        redacted_path = os.path.join(tmp, "input_redacted.pdf")
+        raw_path = os.path.join(tmp, "output_raw.docx")
+        bullets_fixed_path = os.path.join(tmp, "output_bullets_fixed.docx")
+        final_path = os.path.join(tmp, "output_final.docx")
+        with open(in_path, "wb") as f:
+            f.write(pdf_bytes)
+
+        # Detect and redact running header/footer zones before conversion,
+        # so pdf2docx's body extraction never sees that text at all.
+        zones = {"header": None, "footer": None}
+        convert_source = in_path
+        try:
+            zones = detect_hf_zones(in_path)
+            if zones.get("header") or zones.get("footer"):
+                create_redacted_pdf(in_path, zones, redacted_path)
+                convert_source = redacted_path
+        except Exception:
+            logger.exception("Header/footer detection failed; converting unredacted PDF")
+            convert_source = in_path
+
+        cv = Converter(convert_source)
+        try:
+            kwargs = {}
+            if start is not None:
+                kwargs["start"] = start
+            if end is not None:
+                kwargs["end"] = end
+            cv.convert(raw_path, **kwargs)
+        finally:
+            cv.close()
+
+        try:
+            fix_docx_bullets(raw_path, bullets_fixed_path)
+            result_path = bullets_fixed_path
+        except Exception:
+            logger.exception("Bullet post-processing failed; continuing with unfixed docx")
+            result_path = raw_path
+
+        footer_text = (zones.get("footer") or {}).get("text", "").strip()
+        if footer_text:
+            try:
+                inject_footer(result_path, footer_text, final_path)
+                result_path = final_path
+            except Exception:
+                logger.exception("Footer injection failed; returning docx without a real footer")
+
+        with open(result_path, "rb") as f:
+            return f.read()
+
+
+# ── Flask endpoint ────────────────────────────────────────────────────────────
+# `app` must exist at module level -- gunicorn imports this file as a module
+# and looks for a top-level `app` attribute. Nesting it inside __main__ means
+# gunicorn never sees it.
+from flask import Flask, request, send_file
+import io
+
+app = Flask(__name__)
+
+
+@app.post("/convert/pdf-to-docx")
+def handle_convert():
+    pdf_bytes = request.get_data()
+    try:
+        docx_bytes = convert_pdf_to_docx(pdf_bytes)
+    except Exception as exc:
+        logger.exception("pdf2docx conversion failed")
+        return {"error": str(exc)}, 422
+    return send_file(
+        io.BytesIO(docx_bytes),
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        as_attachment=True,
+        download_name="converted.docx",
+    )
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
