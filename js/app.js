@@ -209,6 +209,9 @@ document.addEventListener('DOMContentLoaded', () => {
       URL.revokeObjectURL(docxBlobUrl);
       docxBlobUrl = null;
     }
+    const docxContainer = document.getElementById('docx-container');
+    if (docxContainer) docxContainer.innerHTML = '';
+
     fileInput.value = '';
     mainGrid.classList.remove('has-file');
     dropzoneCard.classList.remove('hidden');
@@ -281,6 +284,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const outName = currentFile.name.replace(/\.[^/.]+$/, "") + ".docx";
       btnDownloadDocx.href = docxBlobUrl;
       btnDownloadDocx.download = outName;
+
+      // Render live DOCX document in browser
+      const docxContainer = document.getElementById('docx-container');
+      if (docxContainer) {
+        docxContainer.innerHTML = '<div style="text-align:center; padding: 2rem; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Rendering document preview...</div>';
+        if (window.docx && window.docx.renderAsync) {
+          try {
+            const arrayBuffer = await blob.arrayBuffer();
+            await window.docx.renderAsync(arrayBuffer, docxContainer, null, {
+              className: 'docx',
+              inWrapper: true,
+              ignoreWidth: false,
+              ignoreHeight: false
+            });
+          } catch (renderErr) {
+            console.error('DOCX render error:', renderErr);
+            docxContainer.innerHTML = '<div style="text-align:center; padding: 1.5rem; color: var(--text-muted);">In-browser preview not supported for this file structure. Please use the Download button below.</div>';
+          }
+        }
+      }
 
       setTimeout(() => {
         progressCard.classList.add('hidden');

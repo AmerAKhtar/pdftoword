@@ -626,6 +626,45 @@ body {
   box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
 }
 
+/* DOCX In-Browser Viewer Styling */
+.docx-preview-header {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary-light);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.docx-preview-viewport {
+  background: rgba(10, 15, 25, 0.9);
+  border: var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  max-height: 520px;
+  overflow-y: auto;
+  text-align: left;
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+}
+
+.docx-preview-viewport .docx-wrapper {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.docx-preview-viewport .docx-wrapper > section.docx {
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+  margin: 0 auto 1.5rem auto !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+  border-radius: 4px !important;
+  padding: 2rem !important;
+}
+
 .btn-reset {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.15);

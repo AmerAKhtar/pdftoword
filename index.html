@@ -15,6 +15,10 @@
   <!-- PDF.js CDN for Client-Side PDF Preview -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
+  <!-- JSZip & docx-preview CDN for Live DOCX In-Browser Preview -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.3/dist/docx-preview.min.js"></script>
+
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -156,9 +160,17 @@
             <i class="fa-solid fa-circle-check"></i>
           </div>
           <h2 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 0.5rem;">Conversion Complete!</h2>
-          <p style="color: var(--text-muted); font-size: 0.95rem;">Your editable Word document is ready for download.</p>
+          <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">Your converted Word document is displayed below.</p>
+
+          <!-- Live DOCX Document Preview Viewport -->
+          <div class="docx-preview-header">
+            <i class="fa-solid fa-file-word"></i> Live In-Browser Word Preview
+          </div>
+          <div class="docx-preview-viewport">
+            <div id="docx-container"></div>
+          </div>
           
-          <div>
+          <div style="margin-top: 1.5rem;">
             <a id="btn-download-docx" href="#" download="converted.docx" class="btn-download">
               <i class="fa-solid fa-file-arrow-down"></i> Download Word (.docx)
             </a>
@@ -168,7 +180,6 @@
             <i class="fa-solid fa-rotate-left"></i> Convert Another Document
           </button>
         </div>
-
       </div>
     </main>
 
