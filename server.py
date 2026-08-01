@@ -141,7 +141,7 @@ class PDFConverterRequestHandler(BaseHTTPRequestHandler):
 def run_server(port=8080):
     server_address = ('0.0.0.0', port)
     httpd = HTTPServer(server_address, PDFConverterRequestHandler)
-    print(f"🚀 PDF to Word Converter Service running on http://localhost:{port}")
+    print(f"[ONLINE] PDF to Word Converter Service running on http://localhost:{port}")
     httpd.serve_forever()
 
 if __name__ == '__main__':
