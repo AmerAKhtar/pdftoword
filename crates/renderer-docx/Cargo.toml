@@ -7,3 +7,9 @@ edition.workspace = true
 common.workspace = true
 geometry.workspace = true
 idm.workspace = true
+
+tracing.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+zip = "0.6"
+quick-xml = "0.31"
