@@ -1,59 +1,114 @@
-# DocuShift - PDF to Word Converter
+# ConvertFlow — Commercial-Grade Document Understanding Engine (Rust)
 
-A high-fidelity PDF to Word (`.docx`) converter with a modern glassmorphism web frontend designed for **GitHub Pages** and a Python backend service (`PyMuPDF`, `pdf2docx`, `Flask`).
+ConvertFlow is an enterprise, high-fidelity PDF-to-Word (`.docx`) conversion engine built with a strict separation between low-level PDF parsing, the **Intermediate Document Model (IDM)**, layout understanding, and native Office Open XML (OOXML) rendering.
 
-## 🚀 Features
-
-- **GitHub Pages Ready**: Pure static client (HTML5, Vanilla CSS, Vanilla JS, PDF.js) deployable directly on GitHub Pages.
-- **Client-Side PDF Previewer**: Interactive document preview & page navigation powered by PDF.js via CDN.
-- **Header & Footer Redaction**: Detects repeating header/footer text across pages and redacts them prior to conversion to eliminate blank page bloat.
-- **Bullet & Table Alignment**: Normalizes list spacing and table margins.
-- **Custom Page Range**: Convert the entire document or select a custom page range (`start` to `end`).
-- **CORS-Enabled API Backend**: Serves local or Cloud Run backends to cross-origin static frontends.
+Unlike traditional direct-mapping converters ($A \rightarrow B$), ConvertFlow treats document conversion as a **semantic reconstruction problem** ($A \rightarrow \text{IDM} \rightarrow B$).
 
 ---
 
-## 🌐 Deploying Frontend to GitHub Pages
+## 🏛️ 8-Stage Architecture Breakdown
 
-1. Push this repository to GitHub:
-   ```bash
-   git add .
-   git commit -m "Add GitHub Pages frontend"
-   git push origin main
-   ```
-2. Navigate to your GitHub repository on GitHub.com.
-3. Go to **Settings** > **Pages**.
-4. Under **Build and deployment**:
-   - **Source**: Select `Deploy from a branch`.
-   - **Branch**: Select `main` (or `master`) and folder `/ (root)`.
-   - Click **Save**.
-5. Your frontend site will be live at: `https://<your-username>.github.io/<your-repo-name>/`.
-
----
-
-## 🐍 Running the Python Backend Service
-
-### Local Setup
-
-1. Install Python dependencies:
-   ```bash
-   pip install pdf2docx PyMuPDF python-docx fitz Flask
-   ```
-2. Start the service:
-   ```bash
-   python pdf_to_docx_service.py
-   ```
-3. The server will run on `http://localhost:8080`.
-
-### Cloud Run / Server Deployment
-You can also deploy the backend using the Dockerfile / Cloud Run specs in `convert_pdf.py` or host it on Render / Railway / AWS.
+```
+[ PDF Document ]
+       │
+       ▼
+1. PDF Analysis Engine (crates/pdf) ──> Top-Left Coordinate Normalization
+       │
+       ▼
+2. Intermediate Document Model (crates/idm) ──> Abstract AST & Geometry
+       │
+       ▼
+3. Advanced Recovery & OCR Engine (crates/ocr) ──> Scanned Page Recovery
+       │
+       ▼
+4. Layout Understanding Engine (crates/layout) ──> Line Clustering & Heading Classification
+       │
+       ▼
+5. DOCX OOXML Renderer Engine (crates/renderer-docx) ──> WordProcessingML & DrawingML
+       │
+       ▼
+6. Quality Validation Engine (crates/validator) ──> Bounding-Box Drift & Fidelity Scoring
+       │
+       ▼
+7. Concurrency & Pipeline (crates/engine) ──> Rayon Parallel Page Processing
+       │
+       ▼
+8. REST API & Cloud Container (crates/api & Dockerfile) ──> Axum Server (0.0.0.0:8080)
+```
 
 ---
 
-## 🛠️ Usage
+## 📦 Workspace Package Matrix
 
-1. Open the frontend (either hosted on GitHub Pages or locally opening `index.html`).
-2. Ensure the top-right **Backend API URL** field points to your running backend (e.g. `http://localhost:8080` or your Cloud Run URL).
-3. Drag and drop your PDF file or click **Select PDF File**.
-4. Preview pages and select your desired page range.
-5. Click **Convert to Word** and download your converted `.docx` file!
+| Crate Path | Crate Name | Description | Key Tech / Specs |
+| :--- | :--- | :--- | :--- |
+| `crates/common` | `common` | Core error enums (`EngineError`) and Result type aliases | `thiserror`, `serde` |
+| `crates/geometry` | `geometry` | 2D Point, BoundingBox (with `extend` union), & Transform matrices | 2D Affine Matrix $\mathbf{T} \cdot \mathbf{v}$ |
+| `crates/idm` | `idm` | Decoupled Intermediate Document Model AST & Resource Manifest | `serde`, `serde_json` |
+| `crates/pdf` | `pdf-parser` | Native PDF stream, glyph, vector shape & image extractor | `pdfium-render`, $\text{Top-Y} = H - Y$ |
+| `crates/layout` | `layout-engine` | Line clustering, paragraph aggregation, & semantic classification | $H_1 - H_3$, Lists, Headers/Footers |
+| `crates/ocr` | `ocr-engine` | Asynchronous OCR recovery pipeline & deskew manager | `async-trait`, `image` |
+| `crates/renderer-docx` | `renderer-docx` | Native Office Open XML (OOXML) package writer | `quick-xml`, `zip` |
+| `crates/validator` | `validator` | Bounding-box spatial drift detection & quality fidelity scoring | Quality Score ($0.0 - 1.0$) |
+| `crates/engine` | `engine` | End-to-end multi-threaded conversion pipeline orchestrator | `rayon`, `tokio` |
+| `crates/api` | `api` | High-throughput Axum REST API web server | `axum`, `tower-http` (CORS) |
+| `crates/dependency-manager` | `dependency-manager` | Enterprise SHA-256 dependency verification & binary registry | Crypto integrity verification |
+
+---
+
+## 🚀 Running the Rust Backend API
+
+### Option A: Local Cargo Execution
+
+Make sure you have the Rust toolchain installed (`1.80+`):
+
+```bash
+# Build & start the REST API server on http://localhost:8080
+cargo run --bin api
+```
+
+The service will listen on `http://0.0.0.0:8080` with Permissive CORS enabled.
+
+### Option B: Production Container (Docker / Cloud Run)
+
+Build and launch the containerized release binary:
+
+```bash
+# Build multi-stage production image
+docker build -t convertflow-api .
+
+# Run container on port 8080
+docker run -p 8080:8080 convertflow-api
+```
+
+---
+
+## 🌐 Frontend & Live Demo
+
+The static web interface is deployed live on **GitHub Pages**:
+
+🔗 **[https://AmerAKhtar.github.io/pdftoword/](https://AmerAKhtar.github.io/pdftoword/)**
+
+### Features:
+- **Interactive Drag & Drop**: Select or drop PDF files.
+- **Client-Side PDF Preview**: Real-time rendering via PDF.js.
+- **Live DOCX In-Browser Preview**: Render converted `.docx` archives directly in the browser via `docx-preview`.
+- **Copyable Error Modal UI**: Selectable and hoverable diagnostic error overlay with 1-click clipboard copy.
+- **Configurable API Endpoint**: Easily switch between `http://localhost:8080` or your custom Google Cloud Run endpoint URL.
+
+---
+
+## 🧪 Testing & Verification
+
+Run the comprehensive workspace test suite across all 18 crates:
+
+```bash
+cargo test --workspace
+```
+
+---
+
+## 📜 API Endpoints
+
+- `GET /health` — Health check endpoint (Returns `OK` 200).
+- `POST /v1/convert` — Primary document conversion endpoint (Accepts multipart `file` form-data, returns binary `.docx` archive).
