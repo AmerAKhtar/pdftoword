@@ -274,20 +274,42 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('end', endVal);
 
     try {
-      const response = await fetch(`${baseUrl}/convert/pdf-to-docx?_=${Date.now()}`, {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-store',
-        body: formData
-      });
+      let response = null;
+      let endpoints = [`${baseUrl}/convert/pdf-to-docx`, `${baseUrl}/v1/convert`];
+      let lastErr = null;
+
+      for (let ep of endpoints) {
+        try {
+          response = await fetch(`${ep}?_=${Date.now()}`, {
+            method: 'POST',
+            mode: 'cors',
+            cache: 'no-store',
+            body: formData
+          });
+          if (response.ok || response.status === 400 || response.status === 500) {
+            break;
+          }
+        } catch (fetchErr) {
+          lastErr = fetchErr;
+        }
+      }
 
       clearInterval(progressInterval);
 
+      if (!response) {
+        throw new Error(
+          `Could not connect to backend server at: ${baseUrl}\n\n` +
+          `• If running locally, start the backend with: cargo run --bin api (or python pdf_to_docx_service.py)\n` +
+          `• If hosted on HTTPS (GitHub Pages), ensure your backend URL uses HTTPS or update the top-right Backend API URL input.`
+        );
+      }
+
       if (!response.ok) {
-        let errMessage = 'Conversion failed.';
+        let errMessage = `Backend server returned HTTP error ${response.status}.`;
         try {
           const errJson = await response.json();
           if (errJson.error) errMessage = errJson.error;
+          else if (errJson.message) errMessage = errJson.message;
         } catch (_) {}
         throw new Error(errMessage);
       }
@@ -330,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       clearInterval(progressInterval);
       console.error('Conversion error:', err);
-      alert(`Conversion Error: ${err.message}\n\nPlease check your backend API URL and ensure pdf_to_docx_service.py is running.`);
+      alert(`Backend Connection Error:\n\n${err.message}`);
       progressCard.classList.add('hidden');
       previewCard.classList.remove('hidden');
     }

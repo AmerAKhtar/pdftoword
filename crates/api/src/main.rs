@@ -11,6 +11,7 @@ use serde_json::json;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
+use tower_http::cors::{Any, CorsLayer};
 
 struct AppState {
     pipeline: ConversionPipeline,
@@ -25,9 +26,16 @@ async fn main() {
 
     let state = Arc::new(AppState { pipeline });
 
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     let app = Router::new()
         .route("/v1/convert", post(convert_document_handler))
+        .route("/convert/pdf-to-docx", post(convert_document_handler))
         .route("/health", axum::routing::get(|| async { "OK" }))
+        .layer(cors)
         .with_state(state);
 
     let addr = "0.0.0.0:8080";
