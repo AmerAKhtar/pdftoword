@@ -122,38 +122,47 @@ def build_document_section(doc, name, address, abn, period_str, financial_data_l
 
 def extract_pdf_to_word(pdf_path: str, output_docx_path: str):
     """
-    Modular PDF to Word extraction using build_document_section.
+    Reads a multi-page PDF document dynamically using PdfReader and converts 
+    its actual text content into a clean, structured, and fully editable Microsoft Word document (.docx).
     """
+    reader = PdfReader(pdf_path)
     doc = docx.Document()
-    
-    sample_financials = [
-        ["Transportation Income", "A$0.00"],
-        ["Delivery Income", "A$0.00"],
-        ["Other Payments", "A$0.00"],
-        ["On Trip Mileage", "0 km"],
-        ["Trips", "0"],
-        ["Total Payments", "A$0.00"],
-        ["Tips", "A$0.00"]
-    ]
-    
-    sample_notes = [
-        ("Updating Tax Info", "You can manage your tax settings through the app portal interface."),
-        ("Disclaimer", "This is structured for general information and organization purposes.")
-    ]
 
-    build_document_section(
-        doc=doc,
-        name="AMER AKHTAR",
-        address="4209 Roxburgh Park, Australia",
-        abn="67520181839",
-        period_str="01-31 May 2026",
-        financial_data_list=sample_financials,
-        notes_list=sample_notes
-    )
+    # Set standard 1-inch margins
+    for section in doc.sections:
+        section.top_margin = Inches(1.0)
+        section.bottom_margin = Inches(1.0)
+        section.left_margin = Inches(1.0)
+        section.right_margin = Inches(1.0)
 
-    add_footer(doc.sections[0], "For more information review the standard Definitions and FAQs.")
+    # 3. Iterate through pages of the PDF and build editable native elements from actual PDF content
+    for page_idx, page in enumerate(reader.pages):
+        text = page.extract_text() or ""
+        
+        # Add page heading
+        p_heading = doc.add_paragraph()
+        r_head = p_heading.add_run(f"Page {page_idx + 1}")
+        r_head.font.size = Pt(14)
+        r_head.font.bold = True
+        p_heading.paragraph_format.space_after = Pt(6)
+
+        # Split text lines into paragraphs for native word layout
+        lines = text.split('\n')
+        for line in lines:
+            if line.strip():
+                p = doc.add_paragraph()
+                p.paragraph_format.line_spacing = 1.15
+                p.paragraph_format.space_after = Pt(4)
+                r = p.add_run(line.strip())
+                r.font.size = Pt(10.5)
+
+        # Add page break between pages (except for the last page)
+        if page_idx < len(reader.pages) - 1:
+            doc.add_page_break()
+
+    # Save the generated document
     doc.save(output_docx_path)
-    logger.info(f"Successfully generated {output_docx_path} via modular structural engine.")
+    logger.info(f"Successfully converted {pdf_path} into {output_docx_path} with dynamic PDF content.")
 
 if __name__ == "__main__":
     doc = docx.Document()
