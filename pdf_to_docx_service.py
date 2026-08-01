@@ -42,15 +42,6 @@ import logging
 import os
 import tempfile
 import fitz
-from pdf2docx import Converter
-from pdf2docx.image.ImagesExtractor import ImagesExtractor
-
-from fix_bullets import fix_docx_bullets
-from fix_headers_footers import detect_hf_zones, create_redacted_pdf, inject_footer
-from fix_alignment import align_docx_with_pdf
-from advanced_ocr_engine import convert_pdf_to_docx_advanced
-from hybrid_engine import convert_pdf_hybrid_engine
-from commercial_engine import convert_pdf_commercial_engine
 from ultimate_engine import convert_pdf_ultimate_engine
 
 logger = logging.getLogger(__name__)
@@ -60,19 +51,7 @@ def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None)
     """
     Converts PDF bytes to DOCX bytes using the Ultimate Vector-First AI-Driven engine.
     """
-    try:
-        return convert_pdf_ultimate_engine(pdf_bytes)
-    except Exception as exc:
-        logger.exception("Ultimate engine failed; executing commercial emergency fallback")
-        return convert_pdf_commercial_engine(pdf_bytes)
-        with tempfile.TemporaryDirectory() as tmp:
-            in_path = os.path.join(tmp, "input.pdf")
-            out_path = os.path.join(tmp, "output.docx")
-            with open(in_path, "wb") as f:
-                f.write(pdf_bytes)
-            convert_pdf_to_docx_advanced(in_path, out_path)
-            with open(out_path, "rb") as f:
-                return f.read()
+    return convert_pdf_ultimate_engine(pdf_bytes)
 
 
 # ── Flask endpoint ────────────────────────────────────────────────────────────
