@@ -36,6 +36,8 @@ serde_json = "1.0"
 tokio = { version = "1.38", features = ["full"] }
 async-trait = "0.1"
 rayon = "1.10"
+axum = { version = "0.7", features = ["multipart"] }
+tempfile = "3"
 
 # Logging & Observability
 tracing = "0.1"
@@ -53,5 +55,10 @@ common = { path = "crates/common" }
 geometry = { path = "crates/geometry" }
 idm = { path = "crates/idm" }
 pdf-parser = { path = "crates/pdf" }
+layout-engine = { path = "crates/layout" }
+renderer-docx = { path = "crates/renderer-docx" }
+ocr-engine = { path = "crates/ocr" }
+validator = { path = "crates/validator" }
 dependency-manager = { path = "crates/dependency-manager" }
 plugins = { path = "crates/plugins" }
+engine = { path = "crates/engine" }

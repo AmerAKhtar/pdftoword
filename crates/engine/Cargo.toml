@@ -5,5 +5,16 @@ edition.workspace = true
 
 [dependencies]
 common.workspace = true
+geometry.workspace = true
 idm.workspace = true
 pdf-parser.workspace = true
+layout-engine.workspace = true
+renderer-docx.workspace = true
+ocr-engine.workspace = true
+validator.workspace = true
+
+tracing.workspace = true
+tokio.workspace = true
+rayon.workspace = true
+dashmap = "5.5"
+thiserror.workspace = true
