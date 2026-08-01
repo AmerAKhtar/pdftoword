@@ -41,6 +41,17 @@ impl BoundingBox {
             && self.y < other.bottom()
             && self.bottom() > other.y
     }
+
+    pub fn extend(&mut self, other: &BoundingBox) {
+        let min_x = self.x.min(other.x);
+        let min_y = self.y.min(other.y);
+        let max_x = self.right().max(other.right());
+        let max_y = self.bottom().max(other.bottom());
+        self.x = min_x;
+        self.y = min_y;
+        self.width = max_x - min_x;
+        self.height = max_y - min_y;
+    }
 }
 
 /// 2D Affine Transformation Matrix: [a, b, c, d, tx, ty]

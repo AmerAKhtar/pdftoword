@@ -1,5 +1,5 @@
 [package]
-name = "layout"
+name = "layout-engine"
 version.workspace = true
 edition.workspace = true
 
@@ -7,4 +7,8 @@ edition.workspace = true
 common.workspace = true
 geometry.workspace = true
 idm.workspace = true
+
+tracing.workspace = true
 serde.workspace = true
+thiserror.workspace = true
+rayon.workspace = true
