@@ -18,7 +18,7 @@ def inject_vml_textbox(paragraph, x_pt, y_pt, width_pt, height_pt, text, font_na
     # Create the shape
     shape = OxmlElement('v:shape')
     shape.set('id', f'Text Box')
-    shape.set('style', f'position:absolute;left:{x_pt}pt;top:{y_pt}pt;width:{width_pt}pt;height:{height_pt}pt;z-index:1;mso-wrap-style:none;v-text-anchor:top')
+    shape.set('style', f'position:absolute;mso-position-horizontal-relative:page;mso-position-vertical-relative:page;left:{x_pt}pt;top:{y_pt}pt;width:{width_pt}pt;height:{height_pt}pt;z-index:1;mso-wrap-style:none;v-text-anchor:top')
     shape.set('coordsize', '21600,21600')
     shape.set('o:spt', '202')
     shape.set('path', 'm,l,21600r21600,l21600,xe')
@@ -101,7 +101,7 @@ def inject_vml_image(paragraph, doc, x_pt, y_pt, width_pt, height_pt, image_byte
     
     shape = OxmlElement('v:shape')
     shape.set('id', f'Image Box')
-    shape.set('style', f'position:absolute;left:{x_pt}pt;top:{y_pt}pt;width:{width_pt}pt;height:{height_pt}pt;z-index:-1;mso-wrap-style:none')
+    shape.set('style', f'position:absolute;mso-position-horizontal-relative:page;mso-position-vertical-relative:page;left:{x_pt}pt;top:{y_pt}pt;width:{width_pt}pt;height:{height_pt}pt;z-index:-1;mso-wrap-style:none')
     shape.set('coordsize', '21600,21600')
     shape.set('o:spt', '75')
     
@@ -121,8 +121,8 @@ def build_docx_from_data(document_data: dict, output_path: str):
     doc = Document()
     
     # Basic namespace setup for VML
-    doc.element.set(qn('xmlns:v'), 'urn:schemas-microsoft-com:vml')
-    doc.element.set(qn('xmlns:o'), 'urn:schemas-microsoft-com:office:office')
+    doc.element.set('xmlns:v', 'urn:schemas-microsoft-com:vml')
+    doc.element.set('xmlns:o', 'urn:schemas-microsoft-com:office:office')
     
     pages = document_data.get("pages", [])
     
@@ -140,6 +140,13 @@ def build_docx_from_data(document_data: dict, output_path: str):
         
         # Create an empty anchor paragraph for the page
         p = doc.add_paragraph()
+        pPr = p._p.get_or_add_pPr()
+        spacing = OxmlElement('w:spacing')
+        spacing.set(qn('w:before'), '0')
+        spacing.set(qn('w:after'), '0')
+        spacing.set(qn('w:line'), '240')
+        spacing.set(qn('w:lineRule'), 'auto')
+        pPr.append(spacing)
         
         # Inject Images
         for img in page.get("images", []):
