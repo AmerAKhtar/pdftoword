@@ -1,0 +1,8 @@
+[package]
+name = "tables"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+geometry.workspace = true
+idm.workspace = true

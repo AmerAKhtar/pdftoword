@@ -1,0 +1,9 @@
+[package]
+name = "renderer-docx"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+common.workspace = true
+geometry.workspace = true
+idm.workspace = true

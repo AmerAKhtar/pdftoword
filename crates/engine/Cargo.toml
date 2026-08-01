@@ -1,0 +1,9 @@
+[package]
+name = "engine"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+common.workspace = true
+idm.workspace = true
+pdf-parser.workspace = true

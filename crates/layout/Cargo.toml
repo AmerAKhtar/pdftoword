@@ -1,0 +1,10 @@
+[package]
+name = "layout"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+common.workspace = true
+geometry.workspace = true
+idm.workspace = true
+serde.workspace = true

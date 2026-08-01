@@ -1,0 +1,9 @@
+[package]
+name = "idm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+geometry.workspace = true
+serde.workspace = true
+serde_json.workspace = true

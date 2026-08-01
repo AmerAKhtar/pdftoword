@@ -1,0 +1,9 @@
+[package]
+name = "cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+common.workspace = true
+pdf-parser.workspace = true
+idm.workspace = true

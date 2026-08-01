@@ -1,0 +1,17 @@
+[package]
+name = "pdf-parser"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+common.workspace = true
+geometry.workspace = true
+idm.workspace = true
+
+serde.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+
+# PDF Binding primitives
+pdfium-render = "0.8"

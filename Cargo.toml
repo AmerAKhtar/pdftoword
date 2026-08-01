@@ -1,0 +1,57 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/common",
+    "crates/geometry",
+    "crates/idm",
+    "crates/pdf",
+    "crates/layout",
+    "crates/ocr",
+    "crates/tables",
+    "crates/fonts",
+    "crates/images",
+    "crates/renderer-docx",
+    "crates/renderer-html",
+    "crates/renderer-pptx",
+    "crates/dependency-manager",
+    "crates/validator",
+    "crates/plugins",
+    "crates/engine",
+    "crates/cli",
+    "crates/api",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["ConvertFlow Core Team"]
+license = "Proprietary"
+
+[workspace.dependencies]
+# Serialization & Data
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async & Concurrency
+tokio = { version = "1.38", features = ["full"] }
+async-trait = "0.1"
+rayon = "1.10"
+
+# Logging & Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Error Handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# PDF Rendering / FFI
+pdfium-render = "0.8"
+
+# Internal Workspace Crates
+common = { path = "crates/common" }
+geometry = { path = "crates/geometry" }
+idm = { path = "crates/idm" }
+pdf-parser = { path = "crates/pdf" }
+dependency-manager = { path = "crates/dependency-manager" }
+plugins = { path = "crates/plugins" }

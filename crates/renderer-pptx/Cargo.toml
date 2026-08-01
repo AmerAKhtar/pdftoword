@@ -1,0 +1,7 @@
+[package]
+name = "renderer-pptx"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+idm.workspace = true

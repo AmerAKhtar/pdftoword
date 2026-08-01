@@ -1,0 +1,10 @@
+[package]
+name = "api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio.workspace = true
+common.workspace = true
+pdf-parser.workspace = true
+idm.workspace = true
