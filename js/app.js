@@ -317,11 +317,11 @@ document.addEventListener('DOMContentLoaded', () => {
         progressBarFill.style.width = `${currentProgress}%`;
         
         if (currentProgress > 30 && currentProgress <= 55) {
-          progressStepText.textContent = 'Detecting & redacting repeating headers/footers...';
+          progressStepText.textContent = 'Extracting PDF objects & Intermediate Document Model (IDM)...';
         } else if (currentProgress > 55 && currentProgress <= 75) {
-          progressStepText.textContent = 'Parsing PyMuPDF vector structures & tables...';
+          progressStepText.textContent = 'Running Stage 3 Layout & Semantic Classifier...';
         } else if (currentProgress > 75) {
-          progressStepText.textContent = 'Building Word (.docx) XML & adjusting bullet spacing...';
+          progressStepText.textContent = 'Building native Office Open XML (WordProcessingML)...';
         }
       }
     }, 400);
@@ -334,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       let response = null;
-      let endpoints = [`${baseUrl}/convert/pdf-to-docx`, `${baseUrl}/v1/convert`];
+      let endpoints = [`${baseUrl}/v1/convert`, `${baseUrl}/convert/pdf-to-docx`];
       let lastErr = null;
 
       for (let ep of endpoints) {
@@ -357,9 +357,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!response) {
         throw new Error(
-          `Could not connect to backend server at: ${baseUrl}\n\n` +
-          `• If running locally, start the backend with: cargo run --bin api (or python pdf_to_docx_service.py)\n` +
-          `• If hosted on HTTPS (GitHub Pages), ensure your backend URL uses HTTPS or update the top-right Backend API URL input.`
+          `Could not connect to Rust Document Engine at: ${baseUrl}\n\n` +
+          `• Start the Rust API server locally: cargo run --bin api\n` +
+          `• Or run via Docker: docker run -p 8080:8080 convertflow-api\n` +
+          `• If hosted on HTTPS (GitHub Pages), ensure your Backend API URL is configured correctly.`
         );
       }
 
