@@ -4,6 +4,22 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Automatic Cache Invalidator: Unregister any service workers and clear browser Cache Storage
+  if ('caches' in window) {
+    caches.keys().then(names => {
+      for (let name of names) {
+        caches.delete(name);
+      }
+    });
+  }
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      for (let registration of registrations) {
+        registration.unregister();
+      }
+    });
+  }
+
   // Elements
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('file-input');
@@ -61,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     apiStatusIndicator.title = 'Connecting...';
 
     try {
-      const response = await fetch(`${baseUrl}/health`, { method: 'GET', mode: 'cors' });
+      const response = await fetch(`${baseUrl}/health?_=${Date.now()}`, { method: 'GET', mode: 'cors', cache: 'no-store' });
       if (response.ok) {
         apiStatusIndicator.classList.remove('offline');
         apiStatusIndicator.title = 'Backend Connected';
@@ -258,9 +274,10 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('end', endVal);
 
     try {
-      const response = await fetch(`${baseUrl}/convert/pdf-to-docx`, {
+      const response = await fetch(`${baseUrl}/convert/pdf-to-docx?_=${Date.now()}`, {
         method: 'POST',
         mode: 'cors',
+        cache: 'no-store',
         body: formData
       });
 
