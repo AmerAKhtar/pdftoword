@@ -4,6 +4,7 @@ import os
 from deconstructor import deconstruct_pdf
 from table_engine import extract_tables
 from native_builder import build_native_docx
+from qa_inspector import inspect_and_verify_docx
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +31,14 @@ def convert_pdf_ultimate_engine(pdf_bytes: bytes) -> bytes:
         logger.info("Phase 3: Vector-First Formatting & Native Reconstruction")
         build_native_docx(doc_data, tables_data, out_path)
         
+        logger.info("Phase 4: Visual QA Loop (LibreOffice PDF rendering & pdftoppm inspection)")
+        qa_stats = inspect_and_verify_docx(out_path, in_path, tmpdir)
+        logger.info(f"Visual QA Audit Complete: Verified={qa_stats.get('docx_verified')}, PageMatch={qa_stats.get('page_count_match')}")
+        
         if os.path.exists(out_path):
             with open(out_path, "rb") as f:
                 result = f.read()
-            logger.info("Ultimate engine conversion completed successfully")
+            logger.info("Ultimate engine conversion & visual verification completed successfully")
             return result
         else:
             raise FileNotFoundError("DOCX generation failed; output file not found.")
