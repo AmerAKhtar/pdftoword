@@ -51,20 +51,20 @@ from fix_alignment import align_docx_with_pdf
 from advanced_ocr_engine import convert_pdf_to_docx_advanced
 from hybrid_engine import convert_pdf_hybrid_engine
 from commercial_engine import convert_pdf_commercial_engine
+from ultimate_engine import convert_pdf_ultimate_engine
 
 logger = logging.getLogger(__name__)
 
 
 def convert_pdf_to_docx(pdf_bytes: bytes, *, start: int = None, end: int = None) -> bytes:
     """
-    Converts PDF bytes to DOCX bytes using the 100% visual fidelity Commercial-Grade engine.
+    Converts PDF bytes to DOCX bytes using the Ultimate Vector-First AI-Driven engine.
     """
     try:
-        # We ignore start/end in the initial implementation for simplicity, 
-        # but could easily add it to commercial_engine if needed.
-        return convert_pdf_commercial_engine(pdf_bytes)
+        return convert_pdf_ultimate_engine(pdf_bytes)
     except Exception as exc:
-        logger.exception("Commercial engine failed; executing hybrid emergency fallback")
+        logger.exception("Ultimate engine failed; executing commercial emergency fallback")
+        return convert_pdf_commercial_engine(pdf_bytes)
         with tempfile.TemporaryDirectory() as tmp:
             in_path = os.path.join(tmp, "input.pdf")
             out_path = os.path.join(tmp, "output.docx")
@@ -110,14 +110,11 @@ def handle_convert():
 
     # Extract PDF bytes from multipart form upload or raw body
     pdf_bytes = None
-    filename = "converted.docx"
+    filename = "Recreated_PDF.docx"
     
     if "file" in request.files:
         file_obj = request.files["file"]
         pdf_bytes = file_obj.read()
-        orig_name = file_obj.filename or "document.pdf"
-        base_name = os.path.splitext(orig_name)[0]
-        filename = f"{base_name}.docx"
     else:
         pdf_bytes = request.get_data()
 
