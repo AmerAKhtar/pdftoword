@@ -3,7 +3,7 @@ import tempfile
 import os
 from deconstructor import deconstruct_pdf
 from table_engine import extract_tables
-from native_builder import build_native_docx
+from pypdf_extractor import extract_pdf_to_word
 from qa_inspector import inspect_and_verify_docx
 
 logger = logging.getLogger(__name__)
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 def convert_pdf_ultimate_engine(pdf_bytes: bytes) -> bytes:
     """
     Executes the Ultimate Vector-First AI-Driven PDF to Word conversion engine.
-    Prioritizes native flow-layout, AI style matching, and vector graphics.
+    Uses pypdf for clean line extraction and python-docx for native element generation.
     """
     logger.info("Starting Ultimate Vector-First AI-Driven Engine")
     
@@ -28,8 +28,12 @@ def convert_pdf_ultimate_engine(pdf_bytes: bytes) -> bytes:
         logger.info("Phase 2: Native Table Extraction")
         tables_data = extract_tables(in_path)
         
-        logger.info("Phase 3: Vector-First Formatting & Native Reconstruction")
-        build_native_docx(doc_data, tables_data, out_path)
+        logger.info("Phase 3: pypdf Extraction & Native Word Element Reconstruction")
+        try:
+            extract_pdf_to_word(in_path, out_path)
+        except Exception as e:
+            logger.exception("pypdf extraction failed; falling back to build_native_docx")
+            build_native_docx(doc_data, tables_data, out_path)
         
         logger.info("Phase 4: Visual QA Loop (LibreOffice PDF rendering & pdftoppm inspection)")
         qa_stats = inspect_and_verify_docx(out_path, in_path, tmpdir)
