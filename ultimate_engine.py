@@ -4,6 +4,7 @@ import os
 from deconstructor import deconstruct_pdf
 from table_engine import extract_tables
 from pypdf_extractor import extract_pdf_to_word
+from native_builder import build_native_docx
 from qa_inspector import inspect_and_verify_docx
 
 logger = logging.getLogger(__name__)

@@ -1,5 +1,6 @@
 import os
 import docx
+from pypdf import PdfReader
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import parse_xml

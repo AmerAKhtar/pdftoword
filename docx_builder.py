@@ -120,9 +120,9 @@ def build_docx_from_data(document_data: dict, output_path: str):
     """
     doc = Document()
     
-    # Basic namespace setup for VML
-    doc.element.set('xmlns:v', 'urn:schemas-microsoft-com:vml')
-    doc.element.set('xmlns:o', 'urn:schemas-microsoft-com:office:office')
+    # Basic namespace setup for VML using valid lxml attribute syntax
+    doc.element.attrib['{http://www.w3.org/2000/xmlns/}v'] = 'urn:schemas-microsoft-com:vml'
+    doc.element.attrib['{http://www.w3.org/2000/xmlns/}o'] = 'urn:schemas-microsoft-com:office:office'
     
     pages = document_data.get("pages", [])
     
