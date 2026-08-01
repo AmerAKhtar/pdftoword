@@ -139,7 +139,7 @@ def handle_convert():
     except ValueError:
         return {"error": "Invalid page range parameters"}, 400
 
-    # Parse optional Adobe API credentials from headers or form inputs
+    # Legacy Adobe credentials parsed for backwards compatibility (ignored by new engine)
     adobe_client_id = request.headers.get("X-Adobe-Client-Id") or request.form.get("adobe_client_id")
     adobe_client_secret = request.headers.get("X-Adobe-Client-Secret") or request.form.get("adobe_client_secret")
 
@@ -147,9 +147,7 @@ def handle_convert():
         docx_bytes = convert_pdf_to_docx(
             pdf_bytes, 
             start=start_idx, 
-            end=end_idx,
-            client_id=adobe_client_id,
-            client_secret=adobe_client_secret
+            end=end_idx
         )
     except Exception as exc:
         logger.exception("pdf2docx conversion failed")
