@@ -52,6 +52,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const apiStatusIndicator = document.getElementById('api-status-indicator');
   const btnTestApi = document.getElementById('btn-test-api');
 
+  // Error Modal Elements
+  const errorModalBackdrop = document.getElementById('error-modal-backdrop');
+  const errorModalMessage = document.getElementById('error-modal-message');
+  const btnCloseErrorModal = document.getElementById('btn-close-error-modal');
+  const btnCopyError = document.getElementById('btn-copy-error');
+  const btnDismissError = document.getElementById('btn-dismiss-error');
+  const copyBtnText = document.getElementById('copy-btn-text');
+
   // State Variables
   let currentFile = null;
   let pdfDoc = null;
@@ -68,6 +76,57 @@ document.addEventListener('DOMContentLoaded', () => {
   const savedApiUrl = localStorage.getItem('docushift_api_url');
   if (savedApiUrl) {
     apiUrlInput.value = savedApiUrl;
+  }
+
+  // Error Modal Handler (Hoverable, Selectable & Copyable)
+  function showErrorModal(message) {
+    errorModalMessage.textContent = message;
+    errorModalBackdrop.classList.remove('hidden');
+    copyBtnText.textContent = 'Copy Error Details';
+  }
+
+  function hideErrorModal() {
+    errorModalBackdrop.classList.add('hidden');
+  }
+
+  if (btnCloseErrorModal) btnCloseErrorModal.addEventListener('click', hideErrorModal);
+  if (btnDismissError) btnDismissError.addEventListener('click', hideErrorModal);
+  if (errorModalBackdrop) {
+    errorModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === errorModalBackdrop) hideErrorModal();
+    });
+  }
+
+  if (btnCopyError) {
+    btnCopyError.addEventListener('click', () => {
+      const textToCopy = errorModalMessage.textContent;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          copyBtnText.textContent = 'Copied to Clipboard!';
+          setTimeout(() => { copyBtnText.textContent = 'Copy Error Details'; }, 2000);
+        }).catch(() => {
+          fallbackCopyText(textToCopy);
+        });
+      } else {
+        fallbackCopyText(textToCopy);
+      }
+    });
+  }
+
+  function fallbackCopyText(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    try {
+      document.execCommand('copy');
+      copyBtnText.textContent = 'Copied to Clipboard!';
+      setTimeout(() => { copyBtnText.textContent = 'Copy Error Details'; }, 2000);
+    } catch (_) {}
+    document.body.removeChild(textarea);
   }
 
   // Check Backend API Connectivity
@@ -141,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Handle selected PDF file
   async function handleFileSelection(file) {
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      alert('Please select a valid PDF file.');
+      showErrorModal('Invalid File Type: Please select a valid PDF document (.pdf).');
       return;
     }
 
@@ -173,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPdfPage(currentPage);
       } catch (err) {
         console.error('Error loading PDF:', err);
-        alert('Could not parse PDF file preview.');
+        showErrorModal(`PDF Preview Error: Could not parse PDF file structure.\n\n${err.message}`);
       }
     };
     fileReader.readAsArrayBuffer(file);
@@ -352,7 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       clearInterval(progressInterval);
       console.error('Conversion error:', err);
-      alert(`Backend Connection Error:\n\n${err.message}`);
+      showErrorModal(`Backend Connection Error:\n\n${err.message}`);
       progressCard.classList.add('hidden');
       previewCard.classList.remove('hidden');
     }

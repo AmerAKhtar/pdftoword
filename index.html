@@ -220,6 +220,42 @@
       </div>
     </section>
 
+    <!-- Interactive & Copyable Error Modal Backdrop -->
+    <div id="error-modal-backdrop" class="modal-backdrop hidden">
+      <div class="modal-card glass-card error-modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <div class="error-badge-icon">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div>
+              <h3 class="modal-title">Backend Connection Error</h3>
+              <p class="modal-subtitle">Hover over text or click copy below</p>
+            </div>
+          </div>
+          <button id="btn-close-error-modal" class="btn-icon" title="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        
+        <div class="modal-body">
+          <label class="error-box-label">
+            <i class="fa-regular fa-copy"></i> Selectable & Hoverable Error Details:
+          </label>
+          <div id="error-modal-message" class="error-content-box" tabindex="0"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btn-copy-error" class="btn-copy-error">
+            <i class="fa-regular fa-clone"></i> <span id="copy-btn-text">Copy Error Details</span>
+          </button>
+          <button id="btn-dismiss-error" class="btn-dismiss-error">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Footer -->
     <footer class="app-footer">
       <p>DocuShift PDF to Word Service &bull; Hosted on GitHub Pages &bull; Powered by PyMuPDF & pdf2docx</p>
