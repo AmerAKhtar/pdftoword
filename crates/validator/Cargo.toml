@@ -4,4 +4,11 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+common.workspace = true
+geometry.workspace = true
 idm.workspace = true
+
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
