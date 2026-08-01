@@ -1,2 +1,47 @@
-# Google App Engine generated folder
-appengine-generated/
+```
+# Python cache
+__pycache__/
+
+# Rust/Cargo
+.cargo/bin/
+.cargo/env
+
+# Compiled files
+*.pyc
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.out
+
+# Dependencies
+.venv/
+venv/
+node_modules/
+target/
+.gradle/
+.mypy_cache/
+.pytest_cache/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+coverage/
+htmlcov/
+```

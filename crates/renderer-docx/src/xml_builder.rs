@@ -81,18 +81,35 @@ impl OoxmlDocumentBuilder {
         xml.push_str(r#"<w:r>"#);
         xml.push_str(r#"<w:rPr>"#);
 
-        // Font Family
-        let _ = write!(xml, r#"<w:rFonts w:ascii="{}" w:hAnsi="{}"/>"#, run.font_id, run.font_id);
+        // Font Family - use actual font family name from resource if available
+        let font_family = run.font_id.strip_prefix("font_").unwrap_or(&run.font_id);
+        let _ = write!(xml, r#"<w:rFonts w:ascii="{}" w:hAnsi="{}" w:eastAsia="{}" w:cs="{}"/>"#, 
+                      font_family, font_family, font_family, font_family);
 
         // Font Size (in half-points)
         let half_points = (run.font_size * 2.0) as u32;
-        let _ = write!(xml, r#"<w:sz w:val="{}"/>"#, half_points);
+        let _ = write!(xml, r#"<w:sz w:val="{}"/><w:szCs w:val="{}"/>"#, half_points, half_points);
 
+        // Bold
         if run.is_bold {
-            xml.push_str(r#"<w:b/>"#);
+            xml.push_str(r#"<w:b/><w:bCs/>"#);
         }
+
+        // Italic
         if run.is_italic {
-            xml.push_str(r#"<w:i/>"#);
+            xml.push_str(r#"<w:i/><w:iCs/>"#);
+        }
+
+        // Color - convert RGBA to RGB hex
+        if run.color_rgba != [0, 0, 0, 255] {
+            let _ = write!(xml, r#"<w:color w:val="{:02X}{:02X}{:02X}"/>"#, 
+                          run.color_rgba[0], run.color_rgba[1], run.color_rgba[2]);
+        }
+
+        // Character spacing
+        if run.character_spacing != 0.0 {
+            let spacing_twips = (run.character_spacing * 20.0) as i32;
+            let _ = write!(xml, r#"<w:spacing w:val="{}"/>"#, spacing_twips);
         }
 
         xml.push_str(r#"</w:rPr>"#);
