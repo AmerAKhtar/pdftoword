@@ -32,6 +32,21 @@ async fn main() {
         .allow_headers(Any);
 
     let app = Router::new()
+        .route(
+            "/",
+            axum::routing::get(|| async {
+                Json(json!({
+                    "service": "ConvertFlow PDF-to-Word Conversion Engine",
+                    "status": "online",
+                    "version": "1.0.0",
+                    "endpoints": {
+                        "health": "GET /health",
+                        "convert": "POST /v1/convert",
+                        "legacy_convert": "POST /convert/pdf-to-docx"
+                    }
+                }))
+            }),
+        )
         .route("/v1/convert", post(convert_document_handler))
         .route("/convert/pdf-to-docx", post(convert_document_handler))
         .route("/health", axum::routing::get(|| async { "OK" }))
