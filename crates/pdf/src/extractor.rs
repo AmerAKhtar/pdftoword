@@ -17,22 +17,19 @@ pub enum PdfParseError {
     FontError(String),
 }
 
-pub struct PdfAnalysisEngine {
-    pdfium: Pdfium,
-}
+pub struct PdfAnalysisEngine;
 
 impl PdfAnalysisEngine {
     pub fn new() -> Result<Self, PdfParseError> {
+        Ok(Self)
+    }
+
+    pub fn extract_document(&self, file_path: &Path) -> Result<IntermediateDocument, PdfParseError> {
         let pdfium = Pdfium::new(
             Pdfium::bind_to_system_library()
                 .map_err(|e| PdfParseError::LoadFailed(e.to_string()))?,
         );
-        Ok(Self { pdfium })
-    }
-
-    pub fn extract_document(&self, file_path: &Path) -> Result<IntermediateDocument, PdfParseError> {
-        let document = self
-            .pdfium
+        let document = pdfium
             .load_pdf_from_file(file_path, None)
             .map_err(|e| PdfParseError::LoadFailed(e.to_string()))?;
 
