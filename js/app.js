@@ -74,8 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load saved API URL or default
   const savedApiUrl = localStorage.getItem('docushift_api_url');
-  if (savedApiUrl) {
+  if (savedApiUrl && savedApiUrl !== 'http://localhost:8080') {
     apiUrlInput.value = savedApiUrl;
+  } else {
+    apiUrlInput.value = 'https://convertflow-conversion-service-1027325733292.us-central1.run.app';
   }
 
   // Error Modal Handler (Hoverable, Selectable & Copyable)
