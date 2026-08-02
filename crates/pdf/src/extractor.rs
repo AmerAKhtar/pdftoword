@@ -77,10 +77,9 @@ impl PdfAnalysisEngine {
                     if let Some(text_run) = self.extract_text_run(&text_obj, height, resources) {
                         let text_group = TextGroup {
                             bounds: text_run.bounds.clone(),
-                            runs: vec![text_run],
                             reading_order: elements.len(),
-                            is_heading: false,
-                            heading_level: None,
+                            runs: vec![text_run],
+                            semantic_type: idm::SemanticType::Unstructured,
                         };
                         elements.push(ElementNode::TextGroup(text_group));
                     }
@@ -123,7 +122,7 @@ impl PdfAnalysisEngine {
 
         let bounds = text_obj.bounds().ok()?;
         // Convert bottom-left PDF coordinate system to top-left document coordinate system
-        let top_y = page_height - bounds.top.value;
+        let top_y = page_height - bounds.top().value;
 
         let font_name = text_obj.font().name();
         let font_id = format!("font_{}", font_name);
@@ -142,10 +141,10 @@ impl PdfAnalysisEngine {
         Some(TextRun {
             text,
             bounds: BoundingBox {
-                x: bounds.left.value,
+                x: bounds.left().value,
                 y: top_y,
-                width: bounds.right.value - bounds.left.value,
-                height: bounds.top.value - bounds.bottom.value,
+                width: bounds.right().value - bounds.left().value,
+                height: bounds.top().value - bounds.bottom().value,
             },
             font_id,
             font_size: text_obj.unscaled_font_size().value,
@@ -165,7 +164,7 @@ impl PdfAnalysisEngine {
         resources: &mut ResourceManifest,
     ) -> Option<ImageNode> {
         let bounds = image_obj.bounds().ok()?;
-        let top_y = page_height - bounds.top.value;
+        let top_y = page_height - bounds.top().value;
         let resource_id = format!("img_{:p}", image_obj);
 
         if !resources.images.contains_key(&resource_id) {
@@ -185,10 +184,10 @@ impl PdfAnalysisEngine {
         Some(ImageNode {
             resource_id,
             bounds: BoundingBox {
-                x: bounds.left.value,
+                x: bounds.left().value,
                 y: top_y,
-                width: bounds.right.value - bounds.left.value,
-                height: bounds.top.value - bounds.bottom.value,
+                width: bounds.right().value - bounds.left().value,
+                height: bounds.top().value - bounds.bottom().value,
             },
             transform: Transform::identity(),
             soft_mask_id: None,
@@ -198,14 +197,14 @@ impl PdfAnalysisEngine {
 
     fn extract_path(&self, path_obj: &PdfPagePathObject, page_height: f32) -> Option<VectorShapeNode> {
         let bounds = path_obj.bounds().ok()?;
-        let top_y = page_height - bounds.top.value;
+        let top_y = page_height - bounds.top().value;
 
         Some(VectorShapeNode {
             bounds: BoundingBox {
-                x: bounds.left.value,
+                x: bounds.left().value,
                 y: top_y,
-                width: bounds.right.value - bounds.left.value,
-                height: bounds.top.value - bounds.bottom.value,
+                width: bounds.right().value - bounds.left().value,
+                height: bounds.top().value - bounds.bottom().value,
             },
             path_commands: Vec::new(), // Iterate path segments and extract coordinates
             stroke_color: Some([0, 0, 0, 255]),
