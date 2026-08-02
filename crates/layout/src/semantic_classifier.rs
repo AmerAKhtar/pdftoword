@@ -10,7 +10,7 @@ impl SemanticClassifier {
         let bottom_footer_region = page_height * 0.92; // Bottom 8% of page
 
         for elem in page.elements.iter_mut() {
-            if let ElementNode::TextGroup(ref mut group) = elem {
+            if let ElementNode::TextGroup(group) = elem {
                 if group.runs.is_empty() {
                     continue;
                 }
