@@ -73,8 +73,8 @@ impl PdfAnalysisEngine {
 
         for object in page.objects().iter() {
             match object {
-                PdfPageObject::Text(text_obj) => {
-                    if let Some(text_run) = self.extract_text_run(&text_obj, height, resources) {
+                PdfPageObject::Text(ref text_obj) => {
+                    if let Some(text_run) = self.extract_text_run(text_obj, height, resources) {
                         let text_group = TextGroup {
                             bounds: text_run.bounds.clone(),
                             reading_order: elements.len(),
@@ -84,13 +84,13 @@ impl PdfAnalysisEngine {
                         elements.push(ElementNode::TextGroup(text_group));
                     }
                 }
-                PdfPageObject::Image(image_obj) => {
-                    if let Some(image_node) = self.extract_image(&image_obj, height, resources) {
+                PdfPageObject::Image(ref image_obj) => {
+                    if let Some(image_node) = self.extract_image(image_obj, height, resources) {
                         elements.push(ElementNode::Image(image_node));
                     }
                 }
-                PdfPageObject::Path(path_obj) => {
-                    if let Some(vector_node) = self.extract_path(&path_obj, height) {
+                PdfPageObject::Path(ref path_obj) => {
+                    if let Some(vector_node) = self.extract_path(path_obj, height) {
                         if vector_node.bounds.width > 0.0 && vector_node.bounds.height > 0.0 {
                             elements.push(ElementNode::VectorShape(vector_node));
                         }
