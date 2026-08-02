@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /tmp/pdfium \
-    && curl -sSL https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F6522/pdfium-linux-x64.tgz | tar -xz -C /tmp/pdfium \
+    && curl -fL -s https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/7961/pdfium-linux-x64.tgz | tar -xz -C /tmp/pdfium \
     && cp /tmp/pdfium/lib/libpdfium.so /usr/lib/ \
     && rm -rf /tmp/pdfium
 
