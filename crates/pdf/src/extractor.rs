@@ -135,18 +135,27 @@ impl PdfAnalysisEngine {
         let top_y = page_height - bounds.top.value;
 
         let font_name = text_obj.font().name();
-        let font_id = format!("font_{}", font_name);
+        let font_id = format!("font_{}", font_name.replace(" ", "_").replace("+", ""));
 
         if !resources.fonts.contains_key(&font_id) {
+            // Try to extract embedded font data
+            let font_data = text_obj.font().embedded_data().unwrap_or_default();
             resources.fonts.insert(
                 font_id.clone(),
                 FontResource {
-                    family_name: font_name,
-                    is_embedded: true,
-                    data: Vec::new(), // Raw embedded stream payload
+                    family_name: font_name.clone(),
+                    is_embedded: !font_data.is_empty(),
+                    data: font_data,
                 },
             );
         }
+
+        // Extract color information
+        let color_rgba = self.extract_color(text_obj);
+        
+        // Detect font style flags
+        let is_bold = text_obj.font().is_bold() || font_name.to_lowercase().contains("bold");
+        let is_italic = text_obj.font().is_italic() || font_name.to_lowercase().contains("italic");
 
         Some(TextRun {
             text,
@@ -158,13 +167,51 @@ impl PdfAnalysisEngine {
             },
             font_id,
             font_size: text_obj.unscaled_font_size().value,
-            color_rgba: [0, 0, 0, 255], // Colorspace translation logic
-            is_bold: false,
-            is_italic: false,
-            character_spacing: 0.0,
-            word_spacing: 0.0,
+            color_rgba,
+            is_bold,
+            is_italic,
+            character_spacing: text_obj.character_spacing().value,
+            word_spacing: text_obj.word_spacing().value,
             transform: Transform::identity(),
         })
+    }
+
+    fn extract_color(&self, text_obj: &PdfPageTextObject) -> [u8; 4] {
+        // Extract fill color from text object
+        if let Some(colorspace) = text_obj.fill_colorspace() {
+            match colorspace {
+                PdfColorSpace::DeviceGray => {
+                    if let Some(gray) = text_obj.fill_color() {
+                        let g = (gray[0] * 255.0) as u8;
+                        return [g, g, g, 255];
+                    }
+                }
+                PdfColorSpace::DeviceRgb => {
+                    if let Some(rgb) = text_obj.fill_color() {
+                        let r = (rgb[0] * 255.0) as u8;
+                        let g = (rgb[1] * 255.0) as u8;
+                        let b = (rgb[2] * 255.0) as u8;
+                        return [r, g, b, 255];
+                    }
+                }
+                PdfColorSpace::DeviceCmyk => {
+                    if let Some(cmyk) = text_obj.fill_color() {
+                        let c = cmyk[0];
+                        let m = cmyk[1];
+                        let y = cmyk[2];
+                        let k = cmyk[3];
+                        // CMYK to RGB conversion
+                        let r = ((1.0 - c) * (1.0 - k) * 255.0) as u8;
+                        let g = ((1.0 - m) * (1.0 - k) * 255.0) as u8;
+                        let b = ((1.0 - y) * (1.0 - k) * 255.0) as u8;
+                        return [r, g, b, 255];
+                    }
+                }
+                _ => {}
+            }
+        }
+        // Default to black
+        [0, 0, 0, 255]
     }
 
     fn extract_image(
@@ -209,6 +256,52 @@ impl PdfAnalysisEngine {
         let bounds = path_obj.bounds().ok()?;
         let top_y = page_height - bounds.top.value;
 
+        // Extract path commands from PDF path object
+        let mut path_commands = Vec::new();
+        for segment in path_obj.path_segments() {
+            match segment.segment_type() {
+                PdfPathSegmentType::MoveTo => {
+                    path_commands.push(idm::PathCommand::MoveTo(geometry::Point {
+                        x: segment.end_point().x.value,
+                        y: page_height - segment.end_point().y.value,
+                    }));
+                }
+                PdfPathSegmentType::LineTo => {
+                    path_commands.push(idm::PathCommand::LineTo(geometry::Point {
+                        x: segment.end_point().x.value,
+                        y: page_height - segment.end_point().y.value,
+                    }));
+                }
+                PdfPathSegmentType::BezierTo => {
+                    if let (Some(cp1), Some(cp2)) = (segment.control_point_1(), segment.control_point_2()) {
+                        path_commands.push(idm::PathCommand::CurveTo {
+                            control1: geometry::Point {
+                                x: cp1.x.value,
+                                y: page_height - cp1.y.value,
+                            },
+                            control2: geometry::Point {
+                                x: cp2.x.value,
+                                y: page_height - cp2.y.value,
+                            },
+                            end: geometry::Point {
+                                x: segment.end_point().x.value,
+                                y: page_height - segment.end_point().y.value,
+                            },
+                        });
+                    }
+                }
+                PdfPathSegmentType::Close => {
+                    path_commands.push(idm::PathCommand::Close);
+                }
+                _ => {}
+            }
+        }
+
+        // Extract stroke and fill colors
+        let stroke_color = self.extract_path_stroke_color(path_obj);
+        let fill_color = self.extract_path_fill_color(path_obj);
+        let stroke_width = path_obj.stroke_width().map(|w| w.value).unwrap_or(1.0);
+
         Some(VectorShapeNode {
             bounds: BoundingBox {
                 x: bounds.left.value,
@@ -216,10 +309,80 @@ impl PdfAnalysisEngine {
                 width: bounds.right.value - bounds.left.value,
                 height: bounds.top.value - bounds.bottom.value,
             },
-            path_commands: Vec::new(), // Iterate path segments and extract coordinates
-            stroke_color: Some([0, 0, 0, 255]),
-            fill_color: None,
-            stroke_width: 1.0,
+            path_commands,
+            stroke_color,
+            fill_color,
+            stroke_width,
         })
+    }
+
+    fn extract_path_stroke_color(&self, path_obj: &PdfPagePathObject) -> Option<[u8; 4]> {
+        if let Some(colorspace) = path_obj.stroke_colorspace() {
+            match colorspace {
+                PdfColorSpace::DeviceGray => {
+                    if let Some(gray) = path_obj.stroke_color() {
+                        let g = (gray[0] * 255.0) as u8;
+                        return Some([g, g, g, 255]);
+                    }
+                }
+                PdfColorSpace::DeviceRgb => {
+                    if let Some(rgb) = path_obj.stroke_color() {
+                        let r = (rgb[0] * 255.0) as u8;
+                        let g = (rgb[1] * 255.0) as u8;
+                        let b = (rgb[2] * 255.0) as u8;
+                        return Some([r, g, b, 255]);
+                    }
+                }
+                PdfColorSpace::DeviceCmyk => {
+                    if let Some(cmyk) = path_obj.stroke_color() {
+                        let c = cmyk[0];
+                        let m = cmyk[1];
+                        let y = cmyk[2];
+                        let k = cmyk[3];
+                        let r = ((1.0 - c) * (1.0 - k) * 255.0) as u8;
+                        let g = ((1.0 - m) * (1.0 - k) * 255.0) as u8;
+                        let b = ((1.0 - y) * (1.0 - k) * 255.0) as u8;
+                        return Some([r, g, b, 255]);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn extract_path_fill_color(&self, path_obj: &PdfPagePathObject) -> Option<[u8; 4]> {
+        if let Some(colorspace) = path_obj.fill_colorspace() {
+            match colorspace {
+                PdfColorSpace::DeviceGray => {
+                    if let Some(gray) = path_obj.fill_color() {
+                        let g = (gray[0] * 255.0) as u8;
+                        return Some([g, g, g, 255]);
+                    }
+                }
+                PdfColorSpace::DeviceRgb => {
+                    if let Some(rgb) = path_obj.fill_color() {
+                        let r = (rgb[0] * 255.0) as u8;
+                        let g = (rgb[1] * 255.0) as u8;
+                        let b = (rgb[2] * 255.0) as u8;
+                        return Some([r, g, b, 255]);
+                    }
+                }
+                PdfColorSpace::DeviceCmyk => {
+                    if let Some(cmyk) = path_obj.fill_color() {
+                        let c = cmyk[0];
+                        let m = cmyk[1];
+                        let y = cmyk[2];
+                        let k = cmyk[3];
+                        let r = ((1.0 - c) * (1.0 - k) * 255.0) as u8;
+                        let g = ((1.0 - m) * (1.0 - k) * 255.0) as u8;
+                        let b = ((1.0 - y) * (1.0 - k) * 255.0) as u8;
+                        return Some([r, g, b, 255]);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
     }
 }

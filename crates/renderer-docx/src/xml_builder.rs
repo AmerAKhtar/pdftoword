@@ -81,18 +81,35 @@ impl OoxmlDocumentBuilder {
         xml.push_str(r#"<w:r>"#);
         xml.push_str(r#"<w:rPr>"#);
 
-        // Font Family
-        let _ = write!(xml, r#"<w:rFonts w:ascii="{}" w:hAnsi="{}"/>"#, run.font_id, run.font_id);
+        // Font Family - use actual font family name from resource if available
+        let font_family = run.font_id.strip_prefix("font_").unwrap_or(&run.font_id);
+        let _ = write!(xml, r#"<w:rFonts w:ascii="{}" w:hAnsi="{}" w:eastAsia="{}" w:cs="{}"/>"#, 
+                      font_family, font_family, font_family, font_family);
 
         // Font Size (in half-points)
         let half_points = (run.font_size * 2.0) as u32;
-        let _ = write!(xml, r#"<w:sz w:val="{}"/>"#, half_points);
+        let _ = write!(xml, r#"<w:sz w:val="{}"/><w:szCs w:val="{}"/>"#, half_points, half_points);
 
+        // Bold
         if run.is_bold {
-            xml.push_str(r#"<w:b/>"#);
+            xml.push_str(r#"<w:b/><w:bCs/>"#);
         }
+
+        // Italic
         if run.is_italic {
-            xml.push_str(r#"<w:i/>"#);
+            xml.push_str(r#"<w:i/><w:iCs/>"#);
+        }
+
+        // Color - convert RGBA to RGB hex
+        if run.color_rgba != [0, 0, 0, 255] {
+            let _ = write!(xml, r#"<w:color w:val="{:02X}{:02X}{:02X}"/>"#, 
+                          run.color_rgba[0], run.color_rgba[1], run.color_rgba[2]);
+        }
+
+        // Character spacing
+        if run.character_spacing != 0.0 {
+            let spacing_twips = (run.character_spacing * 20.0) as i32;
+            let _ = write!(xml, r#"<w:spacing w:val="{}"/>"#, spacing_twips);
         }
 
         xml.push_str(r#"</w:rPr>"#);
@@ -130,8 +147,48 @@ impl OoxmlDocumentBuilder {
         xml.push_str(r#"</w:tbl>"#);
     }
 
-    fn render_image(xml: &mut String, _img: &idm::ImageNode) {
-        // Placeholder for DrawingML image inline rendering block
-        xml.push_str(r#"<w:p><w:r><w:t>[Image Object]</w:t></w:r></w:p>"#);
+    fn render_image(xml: &mut String, img: &idm::ImageNode) {
+        // Calculate image dimensions in EMUs (English Metric Units)
+        // 1 inch = 914400 EMUs, 1 pixel ≈ 9525 EMUs (at 96 DPI)
+        let width_emu = (img.bounds.width * 9525.0) as u64;
+        let height_emu = (img.bounds.height * 9525.0) as u64;
+        
+        // Extract image index from resource_id (format: "img_0x...")
+        // We'll use a simple counter approach - the renderer tracks this
+        let img_idx = img.resource_id.trim_start_matches("img_").hash(std::hash::BuildHasher::hasher(&std::collections::hash_map::RandomState::new())) as u32 % 1000 + 1;
+        
+        xml.push_str(r#"<w:p>"#);
+        xml.push_str(r#"<w:r>"#);
+        xml.push_str(r#"<wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0">"#);
+        
+        // Extent (size)
+        let _ = write!(xml, r#"<wp:extent cx="{}" cy="{}"/>"#, width_emu, height_emu);
+        
+        // Effect extent
+        let _ = write!(xml, r#"<wp:effectExtent l="0" t="0" r="0" b="0"/>"#);
+        
+        // Doc properties
+        let _ = write!(xml, r#"<wp:docPr id="{}" name="Picture {}"/>"#, img_idx, img_idx);
+        
+        // Graphic frame
+        xml.push_str(r#"<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>"#);
+        
+        // Graphic with blip fill
+        xml.push_str(r#"<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image">"#);
+        xml.push_str(r#"<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">"#);
+        
+        // Non-visual picture properties
+        let _ = write!(xml, r#"<pic:nvPicPr><cNvPr id="{}" name="Picture {}"/><cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></cNvPicPr></pic:nvPicPr>"#, img_idx, img_idx);
+        
+        // Blip fill with embed reference
+        let _ = write!(xml, r#"<pic:blipFill><a:blip r:embed="rId{}"><a:stretch><a:fillRect/></a:stretch></a:blip><a:srcRect/><a:tile/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"#, img_idx + 2);
+        
+        // Shape properties
+        xml.push_str(r#"<pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></pic:spPr>"#);
+        
+        xml.push_str(r#"</pic:pic></a:graphicData></a:graphic>"#);
+        xml.push_str(r#"</wp:inline>"#);
+        xml.push_str(r#"</w:r>"#);
+        xml.push_str(r#"</w:p>"#);
     }
 }
