@@ -6,9 +6,15 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     clang \
     cmake \
-    libpdfium-dev \
     libtesseract-dev \
+    curl \
+    tar \
     && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /tmp/pdfium \
+    && curl -sSL https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F6522/pdfium-linux-x64.tgz | tar -xz -C /tmp/pdfium \
+    && cp /tmp/pdfium/lib/libpdfium.so /usr/lib/ \
+    && rm -rf /tmp/pdfium
 
 WORKDIR /app
 COPY . .
@@ -22,6 +28,8 @@ RUN apt-get update && apt-get install -y \
     libtesseract5 \
     tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/lib/libpdfium.so /usr/lib/libpdfium.so
 
 WORKDIR /app
 COPY --from=builder /app/target/release/api /app/convertflow-api
