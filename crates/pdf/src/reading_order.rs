@@ -19,7 +19,7 @@ impl ReadingOrderAnalyzer {
 
         // Re-index reading order
         for (idx, elem) in page.elements.iter_mut().enumerate() {
-            if let ElementNode::TextGroup(ref mut group) = elem {
+            if let ElementNode::TextGroup(group) = elem {
                 group.reading_order = idx;
             }
         }

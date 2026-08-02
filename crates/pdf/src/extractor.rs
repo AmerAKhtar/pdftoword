@@ -40,10 +40,10 @@ impl PdfAnalysisEngine {
         let mut resource_manifest = ResourceManifest::default();
 
         let metadata = DocumentMetadata {
-            title: document.get_metadata_value(PdfDocumentMetadataTag::Title),
-            author: document.get_metadata_value(PdfDocumentMetadataTag::Author),
-            producer: document.get_metadata_value(PdfDocumentMetadataTag::Producer),
-            creation_date: document.get_metadata_value(PdfDocumentMetadataTag::CreationDate),
+            title: document.metadata().get(PdfDocumentMetadataTagType::Title).map(|t| t.value().to_string()),
+            author: document.metadata().get(PdfDocumentMetadataTagType::Author).map(|t| t.value().to_string()),
+            producer: document.metadata().get(PdfDocumentMetadataTagType::Producer).map(|t| t.value().to_string()),
+            creation_date: document.metadata().get(PdfDocumentMetadataTagType::CreationDate).map(|t| t.value().to_string()),
             page_count: document.pages().len() as usize,
         };
 
@@ -65,43 +65,34 @@ impl PdfAnalysisEngine {
         page_index: usize,
         resources: &mut ResourceManifest,
     ) -> Result<PageNode, PdfParseError> {
-        let page_width = page.width().value;
-        let page_height = page.height().value;
-
-        let bounds = BoundingBox {
-            x: 0.0,
-            y: 0.0,
-            width: page_width,
-            height: page_height,
-        };
+        let width = page.width().value;
+        let height = page.height().value;
+        let bounds = BoundingBox::new(0.0, 0.0, width, height);
 
         let mut elements = Vec::new();
 
-        // Iterate through all objects embedded on the page
         for object in page.objects().iter() {
-            match object.object_type() {
-                PdfPageObjectType::Text => {
-                    if let Some(text_object) = object.as_text_object() {
-                        if let Some(run) = self.extract_text_run(&text_object, page_height, resources) {
-                            elements.push(ElementNode::TextGroup(TextGroup {
-                                bounds: run.bounds,
-                                reading_order: elements.len(),
-                                runs: vec![run],
-                                semantic_type: idm::SemanticType::Unstructured,
-                            }));
-                        }
+            match object {
+                PdfPageObject::Text(text_obj) => {
+                    if let Some(text_run) = self.extract_text_run(&text_obj, height, resources) {
+                        let text_group = TextGroup {
+                            bounds: text_run.bounds.clone(),
+                            runs: vec![text_run],
+                            reading_order: elements.len(),
+                            is_heading: false,
+                            heading_level: None,
+                        };
+                        elements.push(ElementNode::TextGroup(text_group));
                     }
                 }
-                PdfPageObjectType::Image => {
-                    if let Some(image_object) = object.as_image_object() {
-                        if let Some(image_node) = self.extract_image(&image_object, page_height, resources) {
-                            elements.push(ElementNode::Image(image_node));
-                        }
+                PdfPageObject::Image(image_obj) => {
+                    if let Some(image_node) = self.extract_image(&image_obj, height, resources) {
+                        elements.push(ElementNode::Image(image_node));
                     }
                 }
-                PdfPageObjectType::Path => {
-                    if let Some(path_object) = object.as_path_object() {
-                        if let Some(vector_node) = self.extract_path(&path_object, page_height) {
+                PdfPageObject::Path(path_obj) => {
+                    if let Some(vector_node) = self.extract_path(&path_obj, height) {
+                        if vector_node.bounds.width > 0.0 && vector_node.bounds.height > 0.0 {
                             elements.push(ElementNode::VectorShape(vector_node));
                         }
                     }
@@ -113,7 +104,7 @@ impl PdfAnalysisEngine {
         Ok(PageNode {
             page_index,
             bounds,
-            rotation: page.rotation().map(|r| r.as_degrees()).unwrap_or(0),
+            rotation: page.rotation().map(|r| r.as_degrees() as u16).unwrap_or(0),
             layers: Vec::new(),
             elements,
         })
